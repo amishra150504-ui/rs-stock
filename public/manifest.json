@@ -1,0 +1,6 @@
+{
+  "name": "RS Stock",
+  "short_name": "RSStock",
+  "start_url": "/",
+  "display": "standalone"
+}
