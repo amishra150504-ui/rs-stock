@@ -82,3 +82,8 @@ button:active{transform:scale(0.98)}
   .actions{flex-direction:column}
   .actions button{width:100%}
 }
+
+/* Zebra striping applied to cells */
+.sheet tbody tr.zebra td {
+  background-color: #fff9db !important;
+}
