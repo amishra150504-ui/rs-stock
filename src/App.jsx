@@ -136,7 +136,12 @@ export default function App() {
             <ItemMaster items={items} setItems={setItems} entries={entries} setEntries={setEntries} currentUser={currentUser} categories={categories} setCategories={setCategories} />
           )}
           {page === 'daily' && (
-            <DailyTransactions dailyEntries={dailyEntries} setDailyEntries={setDailyEntries} currentUser={currentUser} />
+            <DailyTransactions 
+              dailyEntries={dailyEntries} 
+              setDailyEntries={setDailyEntries} 
+              currentUser={currentUser}
+              items={items}
+            />
           )}
           {page === 'backup' && (
             <Backup items={items} entries={entries} setItems={setItems} setEntries={setEntries} />

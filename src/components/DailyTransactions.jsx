@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
-export default function DailyTransactions({ dailyEntries, setDailyEntries, currentUser }) {
+export default function DailyTransactions({ dailyEntries, setDailyEntries, currentUser, items }) {
   const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState({})
 
@@ -10,6 +10,7 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
 
   const start = (i) => {
     if (currentUser?.role === 'staff') return
@@ -40,52 +41,80 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
 
   // Apply Filters
   const filteredEntries = dailyEntries.filter(d => {
+    const itemObj = items?.find(i => i.name === d.item)
     if (search && !d.item.toLowerCase().includes(search.toLowerCase())) return false
     if (typeFilter !== 'all' && d.type !== typeFilter) return false
     if (dateFilter && d.date !== dateFilter) return false
+    if (categoryFilter !== 'all' && itemObj?.category !== categoryFilter) return false
+
     return true
   })
 
   const exportReport = async (format) => {
     const el = document.getElementById('daily-export')
 
-    // Hide filters
+    const originalBg = el.style.backgroundColor
     const filters = el.querySelectorAll('.no-export')
+
+    // Hide filters
     filters.forEach(f => f.style.display = 'none')
+
+    // Force white container
+    el.style.backgroundColor = '#ffffff'
+
+    // Force white rows
+    const rows = el.querySelectorAll('tr')
+    rows.forEach(row => row.style.backgroundColor = '#ffffff')
+
+    // Force dark text
+    const cells = el.querySelectorAll('td')
+    cells.forEach(cell => {
+      cell.style.color = '#000000'
+      cell.style.fontWeight = '600'
+    })
+
+    // Remove animation + opacity
+    const animatedRows = el.querySelectorAll('.row-anim')
+    animatedRows.forEach(row => {
+      row.style.animation = 'none'
+      row.style.opacity = '1'
+    })
 
     const canvas = await html2canvas(el, {
       scale: 2,
       useCORS: true,
-      backgroundColor: '#ffffff',
-      onclone: (clonedDoc) => {
-        const clonedEl = clonedDoc.getElementById('daily-export')
-
-        if (clonedEl) {
-          // Force correct styles in clone only
-          const rows = clonedEl.querySelectorAll('tbody tr')
-          rows.forEach((row, index) => {
-            row.style.backgroundColor = index % 2 === 0 ? '#ffffff' : '#f9fafb'
-          })
-
-          const cells = clonedEl.querySelectorAll('td')
-          cells.forEach(cell => {
-            cell.style.color = '#000000'
-            cell.style.fontWeight = '500'
-          })
-        }
-      }
+      backgroundColor: '#ffffff'
     })
 
     // Restore filters
     filters.forEach(f => f.style.display = '')
 
+    // Restore animation
+    animatedRows.forEach(row => {
+      row.style.animation = ''
+      row.style.opacity = ''
+    })
+
+    // Restore original styles
+    el.style.backgroundColor = originalBg
+    rows.forEach(row => row.style.backgroundColor = '')
+    cells.forEach(cell => {
+      cell.style.color = ''
+      cell.style.fontWeight = ''
+    })
+
     if (format === 'png') {
       const link = document.createElement('a')
       link.download = `daily-transactions-${new Date().toLocaleDateString().replace(/\//g,'_')}.png`
-      link.href = canvas.toDataURL('image/png')
+      link.href = canvas.toDataURL('image/png', 0.9)
       link.click()
     } else {
-      const pdf = new jsPDF({orientation:'portrait',unit:'mm',format:'a4'})
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      })
+
       const imgWidth = 190
       const imgHeight = (canvas.height * imgWidth) / canvas.width
       pdf.addImage(canvas.toDataURL('image/png'),'PNG',10,20,imgWidth,imgHeight)
@@ -130,6 +159,22 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                     />
                   </div>
                 </th>
+                
+                <th style={{ textAlign: 'center' }}>
+                  Category 📁
+                  <div className="no-export">
+                    <select
+                      value={categoryFilter}
+                      onChange={e => setCategoryFilter(e.target.value)}
+                      style={{ width: '100%', marginTop: 4, padding: '4px', borderRadius: 6, fontSize: '12px' }}
+                    >
+                      <option value="all">All</option>
+                      {[...new Set(items?.map(i => i.category))].map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                </th> 
 
                 <th style={{ textAlign: 'center' }}>
                   Type ⚙
@@ -175,6 +220,10 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                     ) : (
                       d.item
                     )}
+                  </td>
+
+                  <td style={{ textAlign: 'center' }}>
+                    {items?.find(it => it.name === d.item)?.category || '—'}
                   </td>
 
                   <td style={{ textAlign: 'center' }}>
@@ -240,7 +289,8 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                             padding:'6px 12px',
                             borderRadius:4,
                             cursor:'pointer',
-                            fontSize:'12px'
+                            fontSize:'12px',
+                            marginRight:'8px'
                           }}
                         >
                           Save
@@ -255,7 +305,8 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                             padding:'6px 12px',
                             borderRadius:4,
                             cursor:'pointer',
-                            fontSize:'12px'
+                            fontSize:'12px',
+                            marginRight:'8px'
                           }}
                         >
                           Cancel
@@ -274,7 +325,8 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                             padding:'6px 12px',
                             borderRadius:4,
                             cursor:'pointer',
-                            fontSize:'12px'
+                            fontSize:'12px',
+                            marginRight:'8px'
                           }}
                         >
                           Edit
@@ -289,7 +341,8 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                             padding:'6px 12px',
                             borderRadius:4,
                             cursor:'pointer',
-                            fontSize:'12px'
+                            fontSize:'12px',
+                            marginRight:'8px'
                           }}
                         >
                           Delete
