@@ -45,6 +45,11 @@ export default function App() {
     return saved ? JSON.parse(saved) : []
   })
 
+  const [entryCounter, setEntryCounter] = useState(() => {
+    const saved = localStorage.getItem('rs_entry_counter')
+    return saved ? Number(saved) : 1
+  })
+
   const [dailyEntries, setDailyEntries] = useState(() => {
     const saved = localStorage.getItem('rs_daily_entries')
     return saved ? JSON.parse(saved) : []
@@ -60,6 +65,7 @@ export default function App() {
   useEffect(() => localStorage.setItem('rs_categories', JSON.stringify(categories)), [categories])
   useEffect(() => localStorage.setItem('rs_entries', JSON.stringify(entries)), [entries])
   useEffect(() => localStorage.setItem('rs_daily_entries', JSON.stringify(dailyEntries)), [dailyEntries])
+  useEffect(() => {localStorage.setItem('rs_entry_counter', entryCounter)}, [entryCounter])
   useEffect(() => { if (currentUser) localStorage.setItem('rs_current_user', JSON.stringify(currentUser)); else localStorage.removeItem('rs_current_user') }, [currentUser])
 
   // ensure default users exist
@@ -101,6 +107,7 @@ export default function App() {
     }
   }, [entries])
 
+  console.log("APP ENTRY COUNTER:", entryCounter)
   return (
     <div className="app">
       <Sidebar page={page} setPage={setPage} open={sidebarOpen} setOpen={setSidebarOpen} currentUser={currentUser} />
@@ -127,7 +134,16 @@ export default function App() {
             <Dashboard entries={entries} calculateStock={calculateStock} items={items} currentUser={currentUser} />
           )}
           {page === 'stock' && (
-            <StockEntry entries={entries} setEntries={setEntries} items={items} dailyEntries={dailyEntries} setDailyEntries={setDailyEntries} currentUser={currentUser} />
+            <StockEntry 
+              entries={entries} 
+              setEntries={setEntries} 
+              items={items} 
+              dailyEntries={dailyEntries} 
+              setDailyEntries={setDailyEntries} 
+              currentUser={currentUser}
+              entryCounter={entryCounter}
+              setEntryCounter={setEntryCounter}
+            />
           )}
           {page === 'report' && (
             <StockReport entries={entries} calculateStock={calculateStock} items={items} currentUser={currentUser} />
