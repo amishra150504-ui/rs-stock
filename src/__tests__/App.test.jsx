@@ -6,6 +6,6 @@ import React from 'react'
 describe('App basic render', () => {
   it('renders app title', () => {
     render(<App />)
-    expect(screen.getByText(/RS Stock/i)).toBeTruthy()
+    expect(screen.getAllByText(/RS Stock/i).length).toBeGreaterThan(0)
   })
 })
