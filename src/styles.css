@@ -2,6 +2,7 @@
 *{box-sizing:border-box;font-family:Segoe UI,Arial,sans-serif}
 body,html,#root{height:100%;margin:0;background:var(--bg)}
 .app{display:flex;height:100vh}
+.sidebar-backdrop{display:none}
 .sidebar{width:220px;background:linear-gradient(180deg,#0f172a,#111827);color:#fff;padding:20px;transition:transform .25s ease;animation:slideIn .3s ease}
 .sidebar .logo{font-size:18px;font-weight:700;margin-bottom:10px}
 .sidebar nav{display:flex;flex-direction:column;gap:8px}
@@ -12,6 +13,19 @@ body,html,#root{height:100%;margin:0;background:var(--bg)}
 .topbar{position:fixed;left:220px;right:0;top:0;height:56px;background:#fff;display:flex;align-items:center;gap:12px;padding:8px 24px;z-index:50;border-bottom:1px solid #e6eef6}
 .hamburger{display:none;background:transparent;border:none;font-size:20px;cursor:pointer;color:#0f172a}
 .brand{font-weight:700;color:#0f172a;font-size:16px}
+.profile-icon{
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  font-size:13px;
+  font-weight:700;
+  color:#0f172a;
+  background:linear-gradient(135deg,#e2e8f0,#cbd5e1);
+  border:1px solid #cbd5e1;
+  flex:0 0 auto;
+}
 .page{animation:fadeIn .4s ease;padding-bottom:40px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
 .card{background:var(--panel);padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,0.06);animation:fadeIn .4s ease}
@@ -80,25 +94,191 @@ input:focus {
 }
 
 @media (max-width: 900px){
-	.sidebar{position:fixed;left:0;top:0;height:100vh;transform:translateX(-100%);z-index:60;width:220px}
+	.sidebar{position:fixed;left:0;top:0;height:100vh;transform:translateX(-100%);z-index:60;width:min(84vw,320px);padding:18px 14px}
 	.sidebar.open{transform:translateX(0);animation:slideIn .3s ease}
-	.topbar{left:0;padding:8px 12px}
+	.sidebar-backdrop{display:block;position:fixed;inset:0;background:rgba(2,6,23,0.35);backdrop-filter:blur(2px);z-index:55;opacity:0;pointer-events:none;transition:opacity .2s ease}
+	.sidebar-backdrop.show{opacity:1;pointer-events:auto}
+	.topbar{left:0;padding:8px 12px;min-height:56px;height:auto}
 	.hamburger{display:block}
-	.main{padding-top:72px;padding-left:12px;padding-right:12px}
-	.form-grid{grid-template-columns:1fr}
+	.main{margin-top:56px;padding:14px 12px}
+	.brand{font-size:15px}
+	.page h1{font-size:24px;margin:8px 0 14px}
+	.page h2{font-size:20px}
+	.form-grid,.item-add-grid,.item-edit-grid,.user-form-grid{grid-template-columns:1fr !important}
+	.sheet{min-width:720px}
+	.actions.right{justify-content:flex-start}
+	.topbar-right{flex-wrap:wrap;justify-content:flex-end;row-gap:4px}
 }
 
 @media (max-width: 600px){
   .form-grid{grid-template-columns:1fr}
-  .sidebar{width:100%;max-width:220px}
+  .sidebar{width:min(88vw,300px)}
   .card{padding:14px}
   .sheet td{padding:8px 10px;font-size:13px}
   .sheet th{padding:10px}
   .actions{flex-direction:column}
   .actions button{width:100%}
+  .topbar{padding:8px 10px}
+  .topbar-right{gap:8px !important}
+  .profile-icon{width:30px;height:30px;font-size:12px}
+  .main{padding:12px 10px}
+  .table-wrap{border-radius:10px}
 }
 
 /* Zebra striping applied to cells */
 .sheet tbody tr.zebra td {
   background-color: #fff9db !important;
+}
+
+.backup-page {
+  max-width: 980px;
+}
+
+.backup-hero {
+  background: linear-gradient(135deg, #0b1f4d, #1d4ed8 55%, #22c55e);
+  color: #fff;
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 18px 40px rgba(29, 78, 216, 0.25);
+  overflow: hidden;
+  position: relative;
+}
+
+.backup-hero h1 {
+  margin: 0;
+  font-size: 34px;
+  letter-spacing: 0.3px;
+}
+
+.backup-hero p {
+  margin: 8px 0 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 15px;
+}
+
+.backup-pulse {
+  width: 140px;
+  height: 140px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0));
+  animation: float 4s ease-in-out infinite;
+}
+
+.backup-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.backup-stat-card {
+  background: #fff;
+  border: 1px solid #e6eef6;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.backup-stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.15);
+}
+
+.backup-stat-card span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.backup-stat-card strong {
+  color: #0f172a;
+  font-size: 20px;
+}
+
+.backup-panel {
+  margin-top: 14px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.08);
+}
+
+.backup-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.backup-export-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 12px 16px;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  box-shadow: 0 10px 20px rgba(21, 128, 61, 0.22);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.backup-export-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 24px rgba(21, 128, 61, 0.3);
+}
+
+.backup-file-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px dashed #2563eb;
+  color: #1d4ed8;
+  font-weight: 700;
+  background: #eff6ff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.backup-file-label:hover {
+  background: #dbeafe;
+  transform: translateY(-2px);
+}
+
+.backup-file-input {
+  display: none;
+}
+
+.backup-meta {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+  color: #334155;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.backup-status {
+  margin-top: 14px;
+  border-left: 4px solid #22c55e;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ecfdf5;
+  color: #065f46;
+  font-weight: 700;
+  animation: slideDown 0.25s ease;
+}
+
+@media (max-width: 600px) {
+  .backup-hero h1 { font-size: 26px; }
+  .backup-hero { padding: 18px; }
+  .backup-pulse { width: 90px; height: 90px; }
 }

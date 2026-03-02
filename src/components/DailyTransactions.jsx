@@ -2,7 +2,37 @@ import React, { useState } from 'react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
-export default function DailyTransactions({ dailyEntries, setDailyEntries, currentUser, items }) {
+const normalizeType = (value) => (value || '').toLowerCase().replace(/\s+/g, ' ').trim()
+
+const sameEntry = (a, b) => {
+  if (!a || !b) return false
+  return (
+    (a.item || '') === (b.item || '') &&
+    normalizeType(a.type) === normalizeType(b.type) &&
+    Number(a.kg || 0) === Number(b.kg || 0) &&
+    Number(a.pcs || 0) === Number(b.pcs || 0) &&
+    (a.date || '') === (b.date || '') &&
+    (a.remarks || '') === (b.remarks || '')
+  )
+}
+
+const findEntryIndex = (list, target) => {
+  if (!target) return -1
+  if (target.id !== undefined && target.id !== null) {
+    const byId = list.findIndex((e) => e.id === target.id)
+    if (byId >= 0) return byId
+  }
+  return list.findIndex((e) => sameEntry(e, target))
+}
+
+export default function DailyTransactions({
+  dailyEntries,
+  setDailyEntries,
+  entries,
+  setEntries,
+  currentUser,
+  items
+}) {
   const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState({})
 
@@ -12,10 +42,10 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
   const [dateFilter, setDateFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
 
-  const start = (i) => {
+  const start = (entry) => {
     if (currentUser?.role === 'staff') return
-    setEditing(i)
-    setDraft({ ...dailyEntries[i] })
+    setEditing(entry.originalIndex)
+    setDraft({ ...dailyEntries[entry.originalIndex] })
   }
 
   const cancel = () => {
@@ -24,23 +54,48 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
   }
 
   const save = () => {
+    const original = dailyEntries[editing]
+    const normalizedDraft = {
+      ...draft,
+      kg: Number(draft.kg || 0),
+      pcs: Number(draft.pcs || 0)
+    }
+
     setDailyEntries(prev => {
       const c = [...prev]
-      c[editing] = draft
+      c[editing] = normalizedDraft
       return c
     })
+
+    setEntries((prev) => {
+      const idx = findEntryIndex(prev, original)
+      if (idx < 0) return prev
+      const clone = [...prev]
+      clone[idx] = { ...clone[idx], ...normalizedDraft }
+      return clone
+    })
+
     cancel()
   }
 
-  const del = (i) => {
+  const del = (entry) => {
     if (currentUser?.role === 'staff')
       return alert('Staff cannot delete transactions')
     if (!window.confirm('Delete?')) return
-    setDailyEntries(prev => prev.filter((_, idx) => idx !== i))
+    const original = dailyEntries[entry.originalIndex]
+
+    setDailyEntries(prev => prev.filter((_, idx) => idx !== entry.originalIndex))
+    setEntries((prev) => {
+      const idx = findEntryIndex(prev, original)
+      if (idx < 0) return prev
+      return prev.filter((_, i) => i !== idx)
+    })
   }
 
   // Apply Filters
-  const filteredEntries = dailyEntries.filter(d => {
+  const filteredEntries = dailyEntries
+    .map((d, originalIndex) => ({ ...d, originalIndex }))
+    .filter(d => {
     const itemObj = items?.find(i => i.name === d.item)
     if (search && !d.item.toLowerCase().includes(search.toLowerCase())) return false
     if (typeFilter !== 'all' && d.type !== typeFilter) return false
@@ -213,9 +268,9 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
 
             <tbody>
               {filteredEntries.map((d, i) => (
-                <tr key={i} className="row-anim" style={{ animation: 'fadeIn .25s ease' }}>
+                <tr key={d.originalIndex} className="row-anim" style={{ animation: 'fadeIn .25s ease' }}>
                   <td>
-                    {editing === i ? (
+                    {editing === d.originalIndex ? (
                       <input value={draft.item || ''} onChange={e => setDraft({ ...draft, item: e.target.value })} />
                     ) : (
                       d.item
@@ -227,7 +282,7 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                   </td>
 
                   <td style={{ textAlign: 'center' }}>
-                    {editing === i ? (
+                    {editing === d.originalIndex ? (
                       <select value={draft.type} onChange={e => setDraft({ ...draft, type: e.target.value })}>
                         <option>Stock In</option>
                         <option>Stock Out</option>
@@ -246,7 +301,7 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                   </td>
 
                   <td style={{ textAlign: 'center' }}>
-                    {editing === i ? (
+                    {editing === d.originalIndex ? (
                       <input type="number" value={draft.kg || ''} onChange={e => setDraft({ ...draft, kg: e.target.value })} />
                     ) : (
                       Number(d.kg).toFixed(3)
@@ -254,7 +309,7 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                   </td>
 
                   <td style={{ textAlign: 'center' }}>
-                    {editing === i ? (
+                    {editing === d.originalIndex ? (
                       <input type="number" value={draft.pcs || ''} onChange={e => setDraft({ ...draft, pcs: e.target.value })} />
                     ) : (
                       d.pcs
@@ -262,7 +317,7 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                   </td>
 
                   <td style={{ textAlign: 'center' }}>
-                    {editing === i ? (
+                    {editing === d.originalIndex ? (
                       <input type="date" value={draft.date || ''} onChange={e => setDraft({ ...draft, date: e.target.value })} />
                     ) : (
                       d.date
@@ -270,7 +325,7 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                   </td>
 
                   <td style={{ textAlign: 'center' }}>
-                    {editing === i ? (
+                    {editing === d.originalIndex ? (
                       <input value={draft.remarks || ''} onChange={e => setDraft({ ...draft, remarks: e.target.value })} />
                     ) : (
                       d.remarks || '—'
@@ -278,7 +333,7 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                   </td>
 
                   <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                    {editing === i ? (
+                    {editing === d.originalIndex ? (
                       <>
                         <button
                           onClick={save}
@@ -317,7 +372,7 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                     ) : (
                       <>
                         <button
-                          onClick={()=>start(i)}
+                          onClick={()=>start(d)}
                           style={{
                             background:'#3b82f6',
                             color:'#fff',
@@ -333,7 +388,7 @@ export default function DailyTransactions({ dailyEntries, setDailyEntries, curre
                         </button>
 
                         <button
-                          onClick={()=>del(i)}
+                          onClick={()=>del(d)}
                           style={{
                             background:'#ef4444',
                             color:'#fff',

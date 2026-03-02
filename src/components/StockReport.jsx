@@ -14,12 +14,16 @@ export default function StockReport({ entries, calculateStock, items }) {
   const filteredKeys = allKeys.filter(key => {
     const s = stock[key]
     const balKg = s.inKg - s.outKg
+    const balPcs = s.inPcs - s.outPcs
     const item = items.find(i => i.name === key)
 
     if (!item) return false
 
-    const isLow = balKg < item.minStock
-    const isOk = balKg >= item.minStock
+    const minStockUnit = item.minStockUnit === 'pcs' ? 'pcs' : 'kg'
+    const isLow = minStockUnit === 'pcs'
+      ? balPcs < Number(item.minStock || 0)
+      : balKg < Number(item.minStock || 0)
+    const isOk = !isLow
 
     // Status filter
     if (statusFilter === 'low' && !isLow) return false
@@ -233,7 +237,16 @@ export default function StockReport({ entries, calculateStock, items }) {
             </thead>
             <tbody>
               {filteredKeys.map((key,i)=>{
-                const s = stock[key]; const balKg = s.inKg - s.outKg; const balP = s.inPcs - s.outPcs; const item = items.find(it=>it.name===key); const low = item && balKg < item.minStock
+                const s = stock[key]
+                const balKg = s.inKg - s.outKg
+                const balP = s.inPcs - s.outPcs
+                const item = items.find(it=>it.name===key)
+                const minStockUnit = item?.minStockUnit === 'pcs' ? 'pcs' : 'kg'
+                const low = item
+                  ? (minStockUnit === 'pcs'
+                    ? balP < Number(item.minStock || 0)
+                    : balKg < Number(item.minStock || 0))
+                  : false
            
                 return (
                   <tr 

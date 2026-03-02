@@ -325,10 +325,10 @@ export default function StockEntry({
         }}>
           <div style={{
             background:'#fff',
-            width:'90%',
+            width:'min(96vw, 800px)',
             maxWidth:800,
             borderRadius:12,
-            padding:20,
+            padding:16,
             maxHeight:'80vh',
             overflowY:'auto'
           }}>
