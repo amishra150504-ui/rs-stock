@@ -1,6 +1,20 @@
 {
-  "name": "RS Stock",
-  "short_name": "RSStock",
+  "name": "COMPANY MANAGEMENT SYSTEM",
+  "short_name": "CMS",
   "start_url": "/",
-  "display": "standalone"
+  "display": "standalone",
+  "theme_color": "#0f2a6d",
+  "background_color": "#f1f5f9",
+  "icons": [
+    {
+      "src": "/rs-logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/rs-logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }

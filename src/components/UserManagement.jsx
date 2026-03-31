@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-export default function UserManagement({ users, setUsers, currentUser }) {
+export default function UserManagement({ users, setUsers, currentUser, onBack }) {
   const [editingIndex, setEditingIndex] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
   const [form, setForm] = useState({
@@ -97,6 +97,20 @@ export default function UserManagement({ users, setUsers, currentUser }) {
     <section className="page">
       <h1>User Management</h1>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+        <button
+          onClick={onBack}
+          style={{
+            background: '#e2e8f0',
+            color: '#0f172a',
+            border: 'none',
+            padding: '10px 14px',
+            borderRadius: 8,
+            cursor: 'pointer',
+            fontWeight: 700
+          }}
+        >
+          Back to Companies
+        </button>
         <button
           onClick={startAdd}
           style={{

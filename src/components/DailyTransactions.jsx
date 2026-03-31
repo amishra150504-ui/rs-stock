@@ -1,8 +1,7 @@
 import React, { useState } from 'react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
-
-const normalizeType = (value) => (value || '').toLowerCase().replace(/\s+/g, ' ').trim()
+import { normalizeType } from '../utils/stockBalance'
 
 const sameEntry = (a, b) => {
   if (!a || !b) return false
@@ -25,6 +24,17 @@ const findEntryIndex = (list, target) => {
   return list.findIndex((e) => sameEntry(e, target))
 }
 
+const removeEntryByIdOrMatch = (list, target) => {
+  if (!target) return list
+  if (target.id !== undefined && target.id !== null) {
+    const hasId = list.some((e) => e.id === target.id)
+    if (hasId) return list.filter((e) => e.id !== target.id)
+  }
+  const idx = list.findIndex((e) => sameEntry(e, target))
+  if (idx < 0) return list
+  return list.filter((_, i) => i !== idx)
+}
+
 export default function DailyTransactions({
   dailyEntries,
   setDailyEntries,
@@ -35,6 +45,7 @@ export default function DailyTransactions({
 }) {
   const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState({})
+  const [selected, setSelected] = useState(new Set())
 
   // 🔍 Filters
   const [search, setSearch] = useState('')
@@ -86,15 +97,55 @@ export default function DailyTransactions({
 
     setDailyEntries(prev => prev.filter((_, idx) => idx !== entry.originalIndex))
     setEntries((prev) => {
-      const idx = findEntryIndex(prev, original)
-      if (idx < 0) return prev
-      return prev.filter((_, i) => i !== idx)
+      return removeEntryByIdOrMatch(prev, original)
     })
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.delete(entry.originalIndex)
+      return next
+    })
+  }
+
+  const toggleSelect = (originalIndex) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(originalIndex)) next.delete(originalIndex)
+      else next.add(originalIndex)
+      return next
+    })
+  }
+
+  const toggleSelectAll = (checked) => {
+    if (!checked) {
+      setSelected(new Set())
+      return
+    }
+    setSelected(new Set(filteredEntries.map(e => e.originalIndex)))
+  }
+
+  const deleteSelected = () => {
+    if (currentUser?.role === 'staff')
+      return alert('Staff cannot delete transactions')
+    if (!selected.size) return alert('No rows selected')
+    if (!window.confirm(`Delete ${selected.size} selected row(s)?`)) return
+
+    const selectedIndexes = new Set(selected)
+    const originals = dailyEntries.filter((_, idx) => selectedIndexes.has(idx))
+
+    setDailyEntries(prev => prev.filter((_, idx) => !selectedIndexes.has(idx)))
+    setEntries(prev => {
+      let next = prev
+      originals.forEach(o => {
+        next = removeEntryByIdOrMatch(next, o)
+      })
+      return next
+    })
+    setSelected(new Set())
   }
 
   // Apply Filters
   const filteredEntries = dailyEntries
-    .map((d, originalIndex) => ({ ...d, originalIndex }))
+    .map((d, originalIndex) => ({ ...d, originalIndex, entryRef: d }))
     .filter(d => {
     const itemObj = items?.find(i => i.name === d.item)
     if (search && !d.item.toLowerCase().includes(search.toLowerCase())) return false
@@ -104,6 +155,35 @@ export default function DailyTransactions({
 
     return true
   })
+    .sort((a, b) => {
+      const da = a.date || ''
+      const db = b.date || ''
+      if (da < db) return 1
+      if (da > db) return -1
+      return a.originalIndex - b.originalIndex
+    })
+
+  const rowsToRender = filteredEntries
+
+  const getConversionForItem = (itemName) => {
+    const item = items?.find((it) => it.name === itemName)
+    const conv = Number(item?.conversion || 0)
+    if (conv > 0) return conv
+    const name = String(itemName || '').toLowerCase()
+    const match = name.match(/(\d+(?:\.\d+)?)\s*mm/)
+    if (!match) return 0
+    const map = { '5.5': 2.24, '6': 2.67, '8': 4.74, '10': 7.4, '12': 10.65, '16': 18.96, '20': 29.6 }
+    return Number(map[match[1]] || 0)
+  }
+
+  const getDisplayPcs = (entry) => {
+    const pcsValue = Number(entry?.pcs || 0)
+    if (pcsValue) return pcsValue
+    const kgValue = Number(entry?.kg || 0)
+    const conv = getConversionForItem(entry?.item)
+    if (!kgValue || !conv) return 0
+    return Math.round(kgValue / conv)
+  }
 
   const exportReport = async (format) => {
     const el = document.getElementById('daily-export')
@@ -179,21 +259,24 @@ export default function DailyTransactions({
 
   return (
     <section className="page">
-      <h1>Daily Transactions</h1>
+      <div className="page-hero">
+        <div>
+          <h1>Daily Transactions</h1>
+          <p>Review, filter, and export your daily stock movements.</p>
+        </div>
+      </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-        <button
-          onClick={() => exportReport('png')}
-          style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}
-        >
-          📥 Export PNG
+      <div className="toolbar">
+        <button onClick={() => exportReport('png')} className="btn btn-blue">
+          Export PNG
         </button>
 
-        <button
-          onClick={() => exportReport('pdf')}
-          style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 8, cursor: 'pointer' }}
-        >
-          📄 Export PDF
+        <button onClick={() => exportReport('pdf')} className="btn btn-red">
+          Export PDF
+        </button>
+
+        <button onClick={deleteSelected} className="btn btn-orange">
+          Delete Selected
         </button>
       </div>
 
@@ -203,6 +286,13 @@ export default function DailyTransactions({
           <table className="sheet">
             <thead>
               <tr>
+                <th className="no-export" style={{ width: 42, textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={filteredEntries.length > 0 && selected.size === filteredEntries.length}
+                    onChange={(e) => toggleSelectAll(e.target.checked)}
+                  />
+                </th>
                 <th>
                   Item 🔍
                   <div className="no-export">
@@ -267,8 +357,15 @@ export default function DailyTransactions({
             </thead>
 
             <tbody>
-              {filteredEntries.map((d, i) => (
+              {rowsToRender.map((d, i) => (
                 <tr key={d.originalIndex} className="row-anim" style={{ animation: 'fadeIn .25s ease' }}>
+                  <td className="no-export" style={{ textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(d.originalIndex)}
+                      onChange={() => toggleSelect(d.originalIndex)}
+                    />
+                  </td>
                   <td>
                     {editing === d.originalIndex ? (
                       <input value={draft.item || ''} onChange={e => setDraft({ ...draft, item: e.target.value })} />
@@ -312,9 +409,10 @@ export default function DailyTransactions({
                     {editing === d.originalIndex ? (
                       <input type="number" value={draft.pcs || ''} onChange={e => setDraft({ ...draft, pcs: e.target.value })} />
                     ) : (
-                      d.pcs
+                      getDisplayPcs(d)
                     )}
                   </td>
+
 
                   <td style={{ textAlign: 'center' }}>
                     {editing === d.originalIndex ? (
@@ -414,3 +512,4 @@ export default function DailyTransactions({
     </section>
   )
 }
+

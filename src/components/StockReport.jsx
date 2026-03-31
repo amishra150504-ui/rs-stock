@@ -1,41 +1,140 @@
 import React, { useState } from 'react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
+import { buildStockMap, normalizeName, mergeEntries } from '../utils/stockBalance'
 
-export default function StockReport({ entries, calculateStock, items }) {
-  const stock = calculateStock()
+export default function StockReport({ entries, dailyEntries = [], calculateStock, items, setItems, currentUser }) {
+  const [draftDateMode, setDraftDateMode] = useState('asof')
+  const [draftAsOfPicker, setDraftAsOfPicker] = useState('')
+  const [draftFromPicker, setDraftFromPicker] = useState('')
+  const [draftToPicker, setDraftToPicker] = useState('')
+  const [draftAsOfDate, setDraftAsOfDate] = useState('')
+  const [draftFromDate, setDraftFromDate] = useState('')
+  const [draftToDate, setDraftToDate] = useState('')
+  const [dateMode, setDateMode] = useState('asof')
+  const [asOfDate, setAsOfDate] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+
+  const mergedEntries = mergeEntries(entries, dailyEntries)
+
+  const toDateKey = (value) => {
+    if (!value) return ''
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) return ''
+      return value.toISOString().slice(0, 10)
+    }
+    const raw = String(value).trim()
+    if (!raw) return ''
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+    if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
+      const [dd, mm, yyyy] = raw.split('-')
+      return `${yyyy}-${mm}-${dd}`
+    }
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+      const [dd, mm, yyyy] = raw.split('/')
+      return `${yyyy}-${mm}-${dd}`
+    }
+    const parsed = new Date(raw)
+    if (Number.isNaN(parsed.getTime())) return ''
+    return parsed.toISOString().slice(0, 10)
+  }
+
+  const isWithinRange = (entryDate, start, end) => {
+    const entryKey = toDateKey(entryDate)
+    if (!entryKey) return false
+    if (start && entryKey < start) return false
+    if (end && entryKey > end) return false
+    return true
+  }
+
+  const filteredEntriesByDate = (() => {
+    if (dateMode === 'asof') {
+      const end = toDateKey(asOfDate)
+      if (!end) return mergedEntries
+      return mergedEntries.filter((e) => isWithinRange(e.date, '', end))
+    }
+    const start = toDateKey(fromDate)
+    const end = toDateKey(toDate)
+    if (!start && !end) return mergedEntries
+    return mergedEntries.filter((e) => isWithinRange(e.date, start, end))
+  })()
+
+  const itemByName = new Map(items.map((it) => [normalizeName(it.name), it]))
+
+  const { map: stock, displayNameByKey } = buildStockMap(
+    dateMode === 'asof' || dateMode === 'range' ? filteredEntriesByDate : mergedEntries,
+    items
+  )
   // 🔍 Filters
   const [statusFilter, setStatusFilter] = useState('all') 
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   
   const allKeys = Object.keys(stock)
+  const hasUnlisted = allKeys.some((key) => !itemByName.has(key))
+  const canEditItems = String(currentUser?.role || '').toLowerCase() !== 'staff'
+
+  const addMissingItem = (rawName) => {
+    if (!setItems) return
+    const cleaned = String(rawName || '')
+      .normalize('NFKC')
+      .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-')
+      .replace(/[^a-z0-9]+/gi, ' ')
+      .trim()
+      .replace(/\s+/g, ' ')
+    if (!cleaned) return
+    const exists = itemByName.has(normalizeName(cleaned))
+    if (exists) return alert('Item already exists in Item Master')
+    setItems((prev) => [
+      ...prev,
+      {
+        name: cleaned,
+        category: 'Rod',
+        conversion: 0,
+        minStock: 0,
+        minStockUnit: 'kg'
+      }
+    ])
+  }
+  const getBalanceValue = (s, item) => {
+    const unit = item?.minStockUnit === 'pcs' ? 'pcs' : 'kg'
+    if (unit === 'pcs') return s.inPcs - s.outPcs
+    return s.inKg - s.outKg
+  }
 
   const filteredKeys = allKeys.filter(key => {
     const s = stock[key]
+    const item = itemByName.get(key)
+
+    const balanceValue = getBalanceValue(s, item)
+    const minStockValue = Number(item?.minStock || 0)
+    const isLow = balanceValue < minStockValue
+    const isOk = balanceValue >= minStockValue
     const balKg = s.inKg - s.outKg
     const balPcs = s.inPcs - s.outPcs
-    const item = items.find(i => i.name === key)
-
-    if (!item) return false
-
-    const minStockUnit = item.minStockUnit === 'pcs' ? 'pcs' : 'kg'
-    const isLow = minStockUnit === 'pcs'
-      ? balPcs < Number(item.minStock || 0)
-      : balKg < Number(item.minStock || 0)
-    const isOk = !isLow
+    const isNegative = balKg < 0 || balPcs < 0
+    const isZero = balKg === 0 && balPcs === 0
 
     // Status filter
     if (statusFilter === 'low' && !isLow) return false
     if (statusFilter === 'ok' && !isOk) return false
+    if (statusFilter === 'negative' && !isNegative) return false
+    if (statusFilter === 'zero' && !isZero) return false
 
     // Category filter
-    if (categoryFilter !== 'all' && item.category !== categoryFilter) return false
+    const categoryValue = item?.category || 'Unlisted'
+    if (categoryFilter !== 'all' && categoryValue !== categoryFilter) return false
 
     // Search filter
-    if (search && !key.toLowerCase().includes(search.toLowerCase())) return false
+    const displayName = displayNameByKey.get(key) || key
+    if (search && !displayName.toLowerCase().includes(search.toLowerCase())) return false
 
     return true
+  }).sort((a, b) => {
+    const nameA = displayNameByKey.get(a) || a
+    const nameB = displayNameByKey.get(b) || b
+    return nameA.localeCompare(nameB)
   })
   
   const exportReport = async (format) => {
@@ -153,11 +252,116 @@ export default function StockReport({ entries, calculateStock, items }) {
 
   return (
     <section className="page">
-      <h1>Stock Report</h1>
-      <div style={{display:'flex',gap:12,marginTop:16,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
-        <button onClick={() => exportReport('png')} style={{background:'linear-gradient(135deg,#3b82f6,#1e40af)',color:'#fff',border:'none',padding:'10px 16px',borderRadius:10,cursor:'pointer',fontWeight:600,transition:'all .2s'}}>📥 Export PNG (High Quality)</button>
-        <button onClick={() => exportReport('pdf')} style={{background:'linear-gradient(135deg,#ef4444,#b91c1c)',color:'#fff',border:'none',padding:'10px 16px',borderRadius:10,cursor:'pointer',fontWeight:600,transition:'all .2s'}}>📄 Export PDF (A4)</button>
-        
+      <div className="page-hero">
+        <div>
+          <h1>Stock Report</h1>
+          <p>Live stock balance summary with filters, status, and exports.</p>
+        </div>
+      </div>
+      <div className="stock-report-toolbar no-export">
+        <div className="stock-export-actions">
+          <button onClick={() => exportReport('png')} className="btn btn-blue">Export PNG (High Quality)</button>
+          <button onClick={() => exportReport('pdf')} className="btn btn-red">Export PDF (A4)</button>
+        </div>
+        <div className="stock-date-controls">
+          <div className="stock-date-controls-row">
+            <div className="stock-date-group">
+              <label>Date Mode</label>
+              <select value={draftDateMode} onChange={(e) => setDraftDateMode(e.target.value)}>
+                <option value="asof">As of Date</option>
+                <option value="range">Date Range</option>
+              </select>
+            </div>
+
+            {draftDateMode === 'asof' ? (
+              <div className="stock-date-group">
+                <label>As of</label>
+                <div className="stock-date-input">
+                  <input
+                    type="text"
+                    value={draftAsOfDate}
+                    placeholder="dd-mm-yyyy"
+                    onChange={(e) => setDraftAsOfDate(e.target.value)}
+                  />
+                  <input
+                    type="date"
+                    value={draftAsOfPicker}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setDraftAsOfPicker(v)
+                      if (v) {
+                        const [yyyy, mm, dd] = v.split('-')
+                        setDraftAsOfDate(`${dd}-${mm}-${yyyy}`)
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="stock-date-group">
+                  <label>From</label>
+                  <div className="stock-date-input">
+                    <input
+                      type="text"
+                      value={draftFromDate}
+                      placeholder="dd-mm-yyyy"
+                      onChange={(e) => setDraftFromDate(e.target.value)}
+                    />
+                    <input
+                      type="date"
+                      value={draftFromPicker}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setDraftFromPicker(v)
+                        if (v) {
+                          const [yyyy, mm, dd] = v.split('-')
+                          setDraftFromDate(`${dd}-${mm}-${yyyy}`)
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="stock-date-group">
+                  <label>To</label>
+                  <div className="stock-date-input">
+                    <input
+                      type="text"
+                      value={draftToDate}
+                      placeholder="dd-mm-yyyy"
+                      onChange={(e) => setDraftToDate(e.target.value)}
+                    />
+                    <input
+                      type="date"
+                      value={draftToPicker}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setDraftToPicker(v)
+                        if (v) {
+                          const [yyyy, mm, dd] = v.split('-')
+                          setDraftToDate(`${dd}-${mm}-${yyyy}`)
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <button
+              type="button"
+              className="stock-date-apply"
+              onClick={() => {
+                setDateMode(draftDateMode)
+                setAsOfDate(draftAsOfDate)
+                setFromDate(draftFromDate)
+                setToDate(draftToDate)
+              }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
       </div>
       <div id="stock-table-export" style={{background:'#fff',padding:20,borderRadius:12}}>
         <div style={{marginBottom:16}}>
@@ -201,7 +405,10 @@ export default function StockReport({ entries, calculateStock, items }) {
                     }}
                   >
                     <option value="all">All</option>
-                    {[...new Set(items.map(i=>i.category))].map(cat=>(
+                    {[...new Set([
+                      ...items.map(i=>i.category),
+                      ...(hasUnlisted ? ['Unlisted'] : [])
+                    ])].map(cat=>(
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
@@ -228,6 +435,8 @@ export default function StockReport({ entries, calculateStock, items }) {
                     }}
                   >
                     <option value="all">All</option>
+                    <option value="negative">Negative (KG or PCS)</option>
+                    <option value="zero">Zero (KG and PCS)</option>
                     <option value="low">Low Only</option>
                     <option value="ok">OK Only</option>
                   </select>
@@ -240,26 +449,50 @@ export default function StockReport({ entries, calculateStock, items }) {
                 const s = stock[key]
                 const balKg = s.inKg - s.outKg
                 const balP = s.inPcs - s.outPcs
-                const item = items.find(it=>it.name===key)
-                const minStockUnit = item?.minStockUnit === 'pcs' ? 'pcs' : 'kg'
-                const low = item
-                  ? (minStockUnit === 'pcs'
-                    ? balP < Number(item.minStock || 0)
-                    : balKg < Number(item.minStock || 0))
-                  : false
+                const item = itemByName.get(key)
+                const displayName = displayNameByKey.get(key) || key
+                const balanceValue = getBalanceValue(s, item)
+                const minStockValue = Number(item?.minStock || 0)
+                const low = balanceValue < minStockValue
            
                 return (
                   <tr 
                     key={i} 
-                    className="row-anim"
-                    style={{
-                      animation:'fadeIn .25s ease',
-                      backgroundColor: i % 2 === 0 ? '#fff9db' : '#ffffff'
-                    }}
+                    className={`row-anim ${i % 2 === 0 ? 'zebra' : ''}`}
+                    style={{animation:'fadeIn .25s ease'}}
                   >
-                    <td style={{fontWeight:600}}>{key}</td>
+                    <td style={{fontWeight:600}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                        <span>{displayName}</span>
+                        {!item && (
+                          <span style={{background:'#fde68a',color:'#92400e',padding:'2px 8px',borderRadius:6,fontSize:'11px',fontWeight:700}}>
+                            Unlisted
+                          </span>
+                        )}
+                        {!item && (
+                          <button
+                            type="button"
+                            onClick={() => addMissingItem(displayName)}
+                            disabled={!canEditItems}
+                            title={canEditItems ? 'Add to Item Master' : 'Staff cannot add items'}
+                            style={{
+                              background: canEditItems ? '#3b82f6' : '#cbd5f5',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '2px 8px',
+                              borderRadius: 6,
+                              fontSize: '11px',
+                              cursor: canEditItems ? 'pointer' : 'not-allowed',
+                              fontWeight: 700
+                            }}
+                          >
+                            Add to Item Master
+                          </button>
+                        )}
+                      </div>
+                    </td>
                     <td style={{textAlign:'center',fontWeight:600}}>
-                      {item?.category}
+                      {item?.category || 'Unlisted'}
                     </td>
                     <td style={{textAlign:'center'}}>{s.inKg.toFixed(3)}</td>
                     <td style={{textAlign:'center'}}>{s.outKg.toFixed(3)}</td>

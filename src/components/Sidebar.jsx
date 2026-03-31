@@ -1,6 +1,8 @@
 import React from 'react'
 
-export default function Sidebar({ page, setPage, open, setOpen, currentUser }) {
+export default function Sidebar({ page, setPage, open, setOpen, company }) {
+  const stockEnabled = Boolean(company?.stockEnabled)
+
   const navItem = (key, label) => (
     <button
       className={`nav-item ${page===key? 'active':''}`}
@@ -12,16 +14,28 @@ export default function Sidebar({ page, setPage, open, setOpen, currentUser }) {
   )
 
   return (
-    <aside className={`sidebar ${open? 'open':''}`}>
-      <div className="logo">RS Stock</div>
+    <aside className={`sidebar sidebar-overlay ${open? 'open':''}`}>
+      <div className="logo">{company?.name || 'RS TRADERS'}</div>
       <nav>
         {navItem('dashboard','Dashboard')}
-        {navItem('stock','Stock Entry')}
-        {navItem('report','Stock Report')}
-        {navItem('item','Item Master')}
-        {navItem('daily','Daily Transactions')}
+        {stockEnabled ? (
+          <>
+            {navItem('stock','Stock Entry')}
+            {navItem('report','Stock Report')}
+            {navItem('item','Item Master')}
+            {navItem('daily','Daily Transactions')}
+          </>
+        ) : (
+          <>
+            {navItem('sales','Sales Entry')}
+            {navItem('salesreport','Party Menu')}
+            {navItem('salesitemreport','Item Wise Report')}
+            {navItem('item','Item Master')}
+          </>
+        )}
+        {navItem('daybook','Daybook Upload')}
+        {navItem('dailychart','Daily Chart')}
         {navItem('backup','Backup')}
-        {currentUser?.role==='admin' && navItem('users','User Management')}
       </nav>
     </aside>
   )

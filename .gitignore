@@ -24,3 +24,6 @@ npm-debug.log*
 # Misc
 .git/
 .vercel
+.firebase/
+.eb-cache/
+rollback_*/
