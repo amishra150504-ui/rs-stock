@@ -38,6 +38,8 @@ body,html,#root{height:100%;margin:0;background:var(--bg)}
   cursor:pointer;
 }
 .sidebar nav{display:flex;flex-direction:column;gap:8px}
+.nav-group{display:flex;flex-direction:column;gap:8px;margin:8px 0 12px;padding:10px;border:1px solid rgba(255,255,255,0.08);border-radius:12px;background:rgba(255,255,255,0.04)}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#93c5fd;font-weight:800;margin:0 2px 2px}
 .sidebar .nav-item{background:transparent;border:none;color:#cbd5e1;padding:10px 12px;text-align:left;border-radius:8px;cursor:pointer;display:block;transition:all .18s;white-space:nowrap}
 .sidebar .nav-item:hover{transform:translateX(6px);color:#fff;background:rgba(255,255,255,0.08)}
 .sidebar .nav-item.active{background:var(--primary);color:#fff}
@@ -3152,3 +3154,37 @@ input:focus {
 .stock-date-input input[type="date"]::-webkit-calendar-picker-indicator{margin:0;padding:6px;cursor:pointer}
 .stock-date-apply{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer}
 .stock-date-apply:hover{box-shadow:0 6px 14px rgba(15,23,42,.15)}
+
+/* Distributor company workflow */
+.eyebrow{margin:0 0 6px!important;color:#2563eb!important;text-transform:uppercase;letter-spacing:.14em;font-size:12px!important;font-weight:800}
+.company-master-layout{display:grid;grid-template-columns:minmax(260px,420px) 1fr;gap:18px;align-items:start}
+.company-master-form,.distributor-entry-card{background:#fff;border:1px solid #e6eef6;border-radius:16px;padding:20px;box-shadow:0 12px 32px rgba(15,23,42,0.06)}
+.company-master-form h2{margin:0 0 16px;color:#0f172a}
+.company-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.company-record-card{display:grid;grid-template-columns:auto 1fr;gap:14px;background:linear-gradient(135deg,#fff,#f8fbff);border:1px solid #dbeafe;border-radius:16px;padding:16px;box-shadow:0 10px 24px rgba(15,23,42,0.05);animation:fadeIn .25s ease}
+.company-record-icon{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#06b6d4);color:#fff;font-weight:900;box-shadow:0 10px 20px rgba(37,99,235,0.25)}
+.company-record-card h3{margin:0;color:#0f172a}
+.company-record-card p{margin:6px 0 0;color:#64748b;font-size:13px}
+.company-record-actions{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end}
+.company-record-actions button,.secondary-btn,.danger-btn,.add-line-btn,.line-remove-btn{border:none;border-radius:9px;padding:8px 12px;font-weight:700;cursor:pointer;transition:all .2s}
+.company-record-actions button{background:#2563eb;color:#fff}
+.secondary-btn{background:#64748b!important;color:#fff!important}
+.danger-btn,.line-remove-btn{background:#ef4444!important;color:#fff!important}
+.company-record-actions button:hover,.secondary-btn:hover,.danger-btn:hover,.add-line-btn:hover,.line-remove-btn:hover{transform:translateY(-2px);box-shadow:0 8px 16px rgba(15,23,42,0.12)}
+.company-record-actions button:disabled,.line-remove-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+.empty-state{min-height:180px;border:1px dashed #bfdbfe;border-radius:16px;background:#f8fbff;display:grid;place-items:center;text-align:center;color:#64748b;padding:24px}
+.empty-state strong{display:block;color:#0f172a;margin-bottom:6px}
+.distributor-entry-top{grid-template-columns:1.1fr .7fr 1.1fr;margin-bottom:20px}
+.multi-entry-list{border:1px solid #e6eef6;border-radius:14px;padding:14px;margin-bottom:18px;background:#f8fbff}
+.multi-entry-header,.multi-entry-row{display:grid;grid-template-columns:1.4fr 1fr 1fr auto;gap:12px;align-items:end}
+.multi-entry-header{color:#64748b;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;padding:0 4px}
+.multi-entry-row{background:#fff;border:1px solid #e6eef6;border-radius:12px;padding:12px;margin-bottom:10px;animation:fadeIn .2s ease}
+.add-line-btn{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;width:100%}
+.line-remove-btn{align-self:end;margin-bottom:0}
+.distributor-stock-entry textarea{min-height:84px;resize:vertical}
+
+@media (max-width: 900px){
+  .company-master-layout{grid-template-columns:1fr}
+  .distributor-entry-top,.multi-entry-header,.multi-entry-row{grid-template-columns:1fr}
+  .multi-entry-header{display:none}
+}

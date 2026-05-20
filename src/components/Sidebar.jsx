@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function Sidebar({ page, setPage, open, setOpen, company }) {
+export default function Sidebar({ page, setPage, open, setOpen, company, isDistributorWorkspace }) {
   const stockEnabled = Boolean(company?.stockEnabled)
 
   const navItem = (key, label) => (
@@ -17,6 +17,13 @@ export default function Sidebar({ page, setPage, open, setOpen, company }) {
     <aside className={`sidebar sidebar-overlay ${open? 'open':''}`}>
       <div className="logo">{company?.name || 'RS TRADERS'}</div>
       <nav>
+        {isDistributorWorkspace && (
+          <div className="nav-group">
+            <div className="nav-group-title">Company</div>
+            {navItem('distributorCompanies','Distributor')}
+            {navItem('sellingParties','Parties')}
+          </div>
+        )}
         {navItem('dashboard','Dashboard')}
         {stockEnabled ? (
           <>

@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import StockEntry from './components/StockEntry.jsx'
+import DistributorStockEntry from './components/DistributorStockEntry.jsx'
 import StockReport from './components/StockReport.jsx'
 import ItemMaster from './components/ItemMaster.jsx'
+import DistributorCompanyMaster from './components/DistributorCompanyMaster.jsx'
 import DailyTransactions from './components/DailyTransactions.jsx'
 import SalesEntry from './components/SalesEntry.jsx'
 import SalesReport from './components/SalesReport.jsx'
@@ -38,12 +40,13 @@ export const ROD_CONVERSIONS = {
 
 const COMPANIES = [
   { id: 'rs_traders', name: 'RS TRADERS', stateDocId: 'global', stockEnabled: true },
+  { id: 'rs_traders_distributor', name: 'RS Traders - Distributor', stateDocId: 'rs_traders_distributor', stockEnabled: true },
   { id: 'la_counter', name: 'LA COUNTER', stateDocId: 'la_counter', stockEnabled: true },
   { id: 'laxmi_agency', name: 'LAXMI AGENCY', stateDocId: 'laxmi_agency', stockEnabled: false }
 ]
 
 const COMPANY_BY_ID = Object.fromEntries(COMPANIES.map((company) => [company.id, company]))
-const STOCK_PAGES = new Set(['stock', 'report', 'daily'])
+const STOCK_PAGES = new Set(['stock', 'report', 'daily', 'distributorCompanies', 'sellingParties'])
 const SHARED_PAGES = new Set(['item'])
 const SALES_PAGES = new Set(['sales', 'salesreport'])
 
@@ -111,6 +114,8 @@ const makeSeedState = (company) => ({
   dailyChartUploads: [],
   purchaseParties: [],
   saleParties: [],
+  distributorCompanies: [],
+  sellingParties: [],
   entryCounter: 1,
   updatedAt: new Date().toISOString()
 })
@@ -133,6 +138,8 @@ export default function App() {
   const [entryCounter, setEntryCounter] = useState(1)
   const [purchaseParties, setPurchaseParties] = useState([])
   const [saleParties, setSaleParties] = useState([])
+  const [distributorCompanies, setDistributorCompanies] = useState([])
+  const [sellingParties, setSellingParties] = useState([])
   const [users, setUsers] = useState(DEFAULT_USERS)
   const [usersLoaded, setUsersLoaded] = useState(false)
 
@@ -155,7 +162,9 @@ export default function App() {
     dailyChartUploads: [],
     entryCounter: 1,
     purchaseParties: [],
-    saleParties: []
+    saleParties: [],
+    distributorCompanies: [],
+    sellingParties: []
   })
   const usersRef = useRef([])
   const saveTimerRef = useRef(null)
@@ -177,7 +186,9 @@ export default function App() {
       dailyChartUploads,
       entryCounter,
       purchaseParties,
-      saleParties
+      saleParties,
+      distributorCompanies,
+      sellingParties
     }
   }, [
     items,
@@ -188,7 +199,9 @@ export default function App() {
     dailyChartUploads,
     entryCounter,
     purchaseParties,
-    saleParties
+    saleParties,
+    distributorCompanies,
+    sellingParties
   ])
 
 
@@ -238,6 +251,8 @@ export default function App() {
     const normalizedDaily = normalizeArray(data?.dailyEntries, [])
     const normalizedPurchaseParties = normalizeArray(data?.purchaseParties, [])
     const normalizedSaleParties = normalizeArray(data?.saleParties, [])
+    const normalizedDistributorCompanies = normalizeArray(data?.distributorCompanies, [])
+    const normalizedSellingParties = normalizeArray(data?.sellingParties, [])
     const maxId = [...normalizedEntries, ...normalizedDaily].reduce((acc, entry) => {
       const id = Number(entry?.id)
       return Number.isFinite(id) && id > acc ? id : acc
@@ -293,6 +308,8 @@ export default function App() {
     setEntryCounter(nextCounter)
     setPurchaseParties(normalizedPurchaseParties)
     setSaleParties(normalizedSaleParties)
+    setDistributorCompanies(normalizedDistributorCompanies)
+    setSellingParties(normalizedSellingParties)
 
     return {
       daybookUploads: daybookResult.cleaned,
@@ -418,6 +435,10 @@ export default function App() {
   useEffect(() => {
     if (!company) return
     if (SHARED_PAGES.has(page)) return
+    if (page === 'distributorCompanies' || page === 'sellingParties') {
+      if (company.id !== 'rs_traders_distributor') setPage('dashboard')
+      return
+    }
     if (company.stockEnabled && SALES_PAGES.has(page)) {
       setPage('dashboard')
       return
@@ -558,6 +579,28 @@ export default function App() {
       setSaleParties((prev) => {
         const next = typeof updater === 'function' ? updater(prev) : updater
         void saveAppState({ saleParties: next })
+        return next
+      })
+    },
+    [saveAppState]
+  )
+
+  const setDistributorCompaniesCloud = useCallback(
+    (updater) => {
+      setDistributorCompanies((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater
+        void saveAppState({ distributorCompanies: next })
+        return next
+      })
+    },
+    [saveAppState]
+  )
+
+  const setSellingPartiesCloud = useCallback(
+    (updater) => {
+      setSellingParties((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater
+        void saveAppState({ sellingParties: next })
         return next
       })
     },
@@ -881,6 +924,7 @@ export default function App() {
             open={sidebarOpen}
             setOpen={setSidebarOpen}
             company={company}
+            isDistributorWorkspace={company?.id === 'rs_traders_distributor'}
           />
         </>
       )}
@@ -988,15 +1032,47 @@ export default function App() {
                 />
             )}
             {page === 'stock' && company.stockEnabled && (
-              <StockEntry
-                entries={entries}
-                setEntries={setEntriesCloud}
-                items={items}
-                dailyEntries={dailyEntries}
-                setDailyEntries={setDailyEntriesCloud}
+              company.id === 'rs_traders_distributor' ? (
+                <DistributorStockEntry
+                  entries={entries}
+                  setEntries={setEntriesCloud}
+                  items={items}
+                  dailyEntries={dailyEntries}
+                  setDailyEntries={setDailyEntriesCloud}
+                  distributorCompanies={distributorCompanies}
+                  sellingParties={sellingParties}
+                  entryCounter={entryCounter}
+                  setEntryCounter={setEntryCounterCloud}
+                />
+              ) : (
+                <StockEntry
+                  entries={entries}
+                  setEntries={setEntriesCloud}
+                  items={items}
+                  dailyEntries={dailyEntries}
+                  setDailyEntries={setDailyEntriesCloud}
+                  currentUser={currentUser}
+                  entryCounter={entryCounter}
+                  setEntryCounter={setEntryCounterCloud}
+                />
+              )
+            )}
+            {page === 'distributorCompanies' && company.id === 'rs_traders_distributor' && (
+              <DistributorCompanyMaster
+                title="Distributor"
+                description="Companies you have taken distributorship from."
+                records={distributorCompanies}
+                setRecords={setDistributorCompaniesCloud}
                 currentUser={currentUser}
-                entryCounter={entryCounter}
-                setEntryCounter={setEntryCounterCloud}
+              />
+            )}
+            {page === 'sellingParties' && company.id === 'rs_traders_distributor' && (
+              <DistributorCompanyMaster
+                title="Parties"
+                description="Parties who buy items from this distributor workspace."
+                records={sellingParties}
+                setRecords={setSellingPartiesCloud}
+                currentUser={currentUser}
               />
             )}
             {page === 'report' && company.stockEnabled && (
@@ -1093,6 +1169,8 @@ export default function App() {
                   entryCounter={entryCounter}
                   purchaseParties={purchaseParties}
                   saleParties={saleParties}
+                  distributorCompanies={distributorCompanies}
+                  sellingParties={sellingParties}
                   users={users}
                   daybookUploads={daybookUploads}
                   dailyChartUploads={dailyChartUploads}
@@ -1103,6 +1181,8 @@ export default function App() {
                   setEntryCounter={setEntryCounterCloud}
                   setPurchaseParties={setPurchasePartiesCloud}
                   setSaleParties={setSalePartiesCloud}
+                  setDistributorCompanies={setDistributorCompaniesCloud}
+                  setSellingParties={setSellingPartiesCloud}
                   setUsers={setUsersCloud}
                   setDaybookUploads={setDaybookUploadsCloud}
                   setDailyChartUploads={setDailyChartUploadsCloud}

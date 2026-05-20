@@ -8,6 +8,8 @@ export default function Backup({
   entryCounter,
   purchaseParties = [],
   saleParties = [],
+  distributorCompanies = [],
+  sellingParties = [],
   users,
   daybookUploads,
   dailyChartUploads,
@@ -18,6 +20,8 @@ export default function Backup({
   setEntryCounter,
   setPurchaseParties,
   setSaleParties,
+  setDistributorCompanies,
+  setSellingParties,
   setUsers,
   setDaybookUploads,
   setDailyChartUploads
@@ -32,6 +36,8 @@ export default function Backup({
       { label: 'Daily', value: dailyEntries.length },
       { label: 'Purchase Parties', value: purchaseParties.length },
       { label: 'Sale Parties', value: saleParties.length },
+      { label: 'Distributor Companies', value: distributorCompanies.length },
+      { label: 'Selling Parties', value: sellingParties.length },
       { label: 'Users', value: users.length },
       { label: 'Daybook', value: daybookUploads.length },
       { label: 'Daily Chart', value: dailyChartUploads.length }
@@ -42,6 +48,8 @@ export default function Backup({
       dailyEntries.length,
       purchaseParties.length,
       saleParties.length,
+      distributorCompanies.length,
+      sellingParties.length,
       users.length,
       daybookUploads.length,
       dailyChartUploads.length
@@ -57,6 +65,8 @@ export default function Backup({
       entryCounter,
       purchaseParties,
       saleParties,
+      distributorCompanies,
+      sellingParties,
       users,
       daybookUploads,
       dailyChartUploads,
@@ -95,6 +105,8 @@ export default function Backup({
         if (Number.isFinite(Number(d.entryCounter))) setEntryCounter(Number(d.entryCounter))
         if (Array.isArray(d.purchaseParties) && setPurchaseParties) setPurchaseParties(d.purchaseParties)
         if (Array.isArray(d.saleParties) && setSaleParties) setSaleParties(d.saleParties)
+        if (Array.isArray(d.distributorCompanies) && setDistributorCompanies) setDistributorCompanies(d.distributorCompanies)
+        if (Array.isArray(d.sellingParties) && setSellingParties) setSellingParties(d.sellingParties)
         if (Array.isArray(d.users)) setUsers(d.users)
         if (Array.isArray(d.daybookUploads)) setDaybookUploads(d.daybookUploads)
         if (Array.isArray(d.dailyChartUploads)) setDailyChartUploads(d.dailyChartUploads)

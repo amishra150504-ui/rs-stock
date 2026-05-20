@@ -46,6 +46,7 @@ export default function DailyTransactions({
   const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState({})
   const [selected, setSelected] = useState(new Set())
+  const hasDistributorEntries = dailyEntries.some((entry) => entry.entryKind === 'distributor-sale')
 
   // üîç Filters
   const [search, setSearch] = useState('')
@@ -148,7 +149,8 @@ export default function DailyTransactions({
     .map((d, originalIndex) => ({ ...d, originalIndex, entryRef: d }))
     .filter(d => {
     const itemObj = items?.find(i => i.name === d.item)
-    if (search && !d.item.toLowerCase().includes(search.toLowerCase())) return false
+    const searchText = `${d.item || ''} ${d.distributorCompany || ''} ${d.sellingParty || ''}`.toLowerCase()
+    if (search && !searchText.includes(search.toLowerCase())) return false
     if (typeFilter !== 'all' && d.type !== typeFilter) return false
     if (dateFilter && d.date !== dateFilter) return false
     if (categoryFilter !== 'all' && itemObj?.category !== categoryFilter) return false
@@ -303,8 +305,11 @@ export default function DailyTransactions({
                       style={{ width: '100%', marginTop: 4, padding: '4px 6px', borderRadius: 6, fontSize: '12px' }}
                     />
                   </div>
-                </th>
-                
+                </th> 
+
+                {hasDistributorEntries && <th style={{ textAlign: 'center' }}>Distributor Company</th>}
+                {hasDistributorEntries && <th style={{ textAlign: 'center' }}>Selling Party</th>}
+
                 <th style={{ textAlign: 'center' }}>
                   Category üìÅ
                   <div className="no-export">
@@ -377,6 +382,26 @@ export default function DailyTransactions({
                   <td style={{ textAlign: 'center' }}>
                     {items?.find(it => it.name === d.item)?.category || '‚Äî'}
                   </td>
+                  {hasDistributorEntries && (
+                    <td style={{ textAlign: 'center' }}>
+                      {editing === d.originalIndex ? (
+                        <input value={draft.distributorCompany || ''} onChange={e => setDraft({ ...draft, distributorCompany: e.target.value })} />
+                      ) : (
+                        d.distributorCompany || 'ó'
+                      )}
+                    </td>
+                  )}
+
+                  {hasDistributorEntries && (
+                    <td style={{ textAlign: 'center' }}>
+                      {editing === d.originalIndex ? (
+                        <input value={draft.sellingParty || ''} onChange={e => setDraft({ ...draft, sellingParty: e.target.value })} />
+                      ) : (
+                        d.sellingParty || 'ó'
+                      )}
+                    </td>
+                  )}
+
 
                   <td style={{ textAlign: 'center' }}>
                     {editing === d.originalIndex ? (
