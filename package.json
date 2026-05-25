@@ -2,7 +2,7 @@
     "name":  "rs-stock",
     "displayName":  "Management System",
     "private":  true,
-    "version":  "0.1.2",
+    "version":  "0.1.3",
     "description":  "Professional stock management application for RS enterprises",
     "type":  "module",
     "main":  "electron.js",
@@ -69,6 +69,7 @@
     "dependencies":  {
                          "html2canvas":  "^1.4.1",
                          "jspdf":  "^2.5.2",
+                         "electron-updater":  "^6.3.0",
                          "react":  "^19.0.0",
                          "react-dom":  "^19.0.0"
                      },
@@ -79,7 +80,6 @@
                             "cross-env":  "^7.0.0",
                             "electron":  "^30.0.0",
                             "electron-builder":  "^24.0.0",
-                            "electron-updater":  "^6.3.0",
                             "jsdom":  "^22.0.0",
                             "vite":  "^4.0.0",
                             "vitest":  "^1.0.0"
