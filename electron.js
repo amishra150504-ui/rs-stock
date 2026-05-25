@@ -3,6 +3,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import http from 'http'
 import fs from 'fs'
+import { spawn } from 'child_process'
+import { autoUpdater } from 'electron-updater'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -12,6 +14,7 @@ app.setPath('userData', userDataDir)
 app.setPath('cache', path.join(userDataDir, 'Cache'))
 
 let mainWindow
+let splashWindow
 const DEFAULT_PORT = 5173
 const BASE_DIR = path.join(app.getPath('home'), 'Downloads', 'RS Stock', 'Local storage permanent')
 const BACKUP_DIR = 'C:\\Users\\hp\\OneDrive\\Documents\\Stock Backup\\Backup'
@@ -53,6 +56,18 @@ const getBackupFilePath = (companyName, dateKey) =>
 const getReportFilePath = (companyName, dateKey, reportType, ext) =>
   path.join(REPORT_DIR, safeName(companyName), dateKey, `${safeName(reportType)}.${ext}`)
 
+const getDesktopInstallDir = () =>
+  path.join(app.getPath('desktop'), 'Management System')
+
+const getDesktopUpdatesDir = () =>
+  path.join(getDesktopInstallDir(), 'updates')
+
+const getDesktopUpdateExePath = () =>
+  path.join(getDesktopUpdatesDir(), 'Management-System.new.exe')
+
+const getDesktopUpdateVersionPath = () =>
+  path.join(getDesktopUpdatesDir(), 'version.json')
+
 // Helper to check if port is available
 function isPortAvailable(port) {
   return new Promise((resolve) => {
@@ -78,11 +93,58 @@ async function findAvailablePort(startPort = DEFAULT_PORT) {
 }
 
 async function createWindow() {
+  // Quick splash to improve perceived startup time.
+  splashWindow = new BrowserWindow({
+    width: 420,
+    height: 260,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    show: true,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  })
+
+  const splashHtml = `
+  <html>
+    <head>
+      <meta charset="utf-8" />
+      <style>
+        body{margin:0;background:transparent;font-family:Segoe UI,Arial,sans-serif}
+        .card{height:100vh;display:flex;align-items:center;justify-content:center}
+        .inner{width:380px;background:linear-gradient(135deg,#ffffff,#eef2ff);border:1px solid #dbeafe;border-radius:18px;box-shadow:0 20px 60px rgba(15,23,42,.25);padding:18px 18px}
+        .title{font-weight:900;color:#0f172a;font-size:18px;letter-spacing:.2px}
+        .sub{margin-top:6px;color:#475569;font-weight:700;font-size:12px}
+        .bar{margin-top:14px;height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden}
+        .bar > div{height:100%;width:40%;background:linear-gradient(90deg,#3b82f6,#7c3aed);border-radius:999px;animation:move 1.2s ease-in-out infinite}
+        @keyframes move{0%{transform:translateX(-30%)}50%{transform:translateX(160%)}100%{transform:translateX(-30%)}}
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="inner">
+          <div class="title">Management System</div>
+          <div class="sub">Loading…</div>
+          <div class="bar"><div></div></div>
+        </div>
+      </div>
+    </body>
+  </html>`
+
+  splashWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml)}`)
+  splashWindow.center()
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     icon: path.join(__dirname, 'public/icon.png'),
     autoHideMenuBar: true,
+    show: false,
+    backgroundColor: '#f3f6ff',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -90,6 +152,15 @@ async function createWindow() {
     }
   })
   Menu.setApplicationMenu(null)
+
+  mainWindow.once('ready-to-show', () => {
+    if (!mainWindow) return
+    mainWindow.show()
+    if (splashWindow) {
+      splashWindow.close()
+      splashWindow = null
+    }
+  })
 
   const forceDist = process.env.RS_FORCE_DIST === '1'
   if (app.isPackaged || forceDist) {
@@ -106,10 +177,47 @@ async function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null
+    if (splashWindow) {
+      splashWindow.close()
+      splashWindow = null
+    }
+  })
+}
+
+const configureAutoUpdater = () => {
+  try {
+    // Optional override at runtime without rebuilding:
+    // set RS_UPDATE_URL, e.g. https://example.com/rs-stock-updates/
+    const updateUrl = process.env.RS_UPDATE_URL
+    if (updateUrl) {
+      autoUpdater.setFeedURL({ provider: 'generic', url: updateUrl })
+    }
+  } catch (err) {
+    console.error('autoUpdater config error', err)
+  }
+
+  autoUpdater.autoDownload = false
+
+  autoUpdater.on('error', (err) => {
+    if (mainWindow) mainWindow.webContents.send('rs-update-error', String(err?.message || err))
+  })
+  autoUpdater.on('update-available', (info) => {
+    if (mainWindow) mainWindow.webContents.send('rs-update-available', info || {})
+  })
+  autoUpdater.on('update-not-available', (info) => {
+    if (mainWindow) mainWindow.webContents.send('rs-update-not-available', info || {})
+  })
+  autoUpdater.on('download-progress', (progress) => {
+    if (mainWindow) mainWindow.webContents.send('rs-update-download-progress', progress || {})
+  })
+  autoUpdater.on('update-downloaded', (info) => {
+    if (mainWindow) mainWindow.webContents.send('rs-update-downloaded', info || {})
   })
 }
 
 app.whenReady().then(() => {
+  configureAutoUpdater()
+
   ipcMain.handle('rs-read-company', async (_event, companyId) => {
     try {
       await ensureDir(BASE_DIR)
@@ -242,6 +350,95 @@ app.whenReady().then(() => {
     } catch (err) {
       console.error('show item error', err)
       return { error: String(err?.message || err) }
+    }
+  })
+
+  ipcMain.handle('rs-update-check', async (_event, payload) => {
+    try {
+      const currentBuildTime = String(payload?.currentBuildTime || '')
+      const versionPath = getDesktopUpdateVersionPath()
+      if (!fs.existsSync(versionPath)) return { available: false }
+      const raw = await fs.promises.readFile(versionPath, 'utf8')
+      const info = JSON.parse(raw)
+      const nextBuildTime = String(info?.buildTime || info?.version || '')
+      const exePath = getDesktopUpdateExePath()
+      const hasExe = fs.existsSync(exePath)
+      const available = Boolean(hasExe && nextBuildTime && currentBuildTime && nextBuildTime !== currentBuildTime)
+      return { available, info }
+    } catch (err) {
+      return { available: false, error: String(err?.message || err) }
+    }
+  })
+
+  ipcMain.handle('rs-update-apply', async () => {
+    try {
+      const updatesDir = getDesktopUpdatesDir()
+      const newExe = getDesktopUpdateExePath()
+      if (!fs.existsSync(newExe)) return { ok: false, error: 'No staged update found.' }
+
+      const targetExe = process.execPath
+      const psScript = `
+$ErrorActionPreference = "Stop"
+$newExe = "${newExe.replace(/"/g, '""')}"
+$targetExe = "${targetExe.replace(/"/g, '""')}"
+$pid = ${process.pid}
+
+try { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue } catch {}
+
+for ($i=0; $i -lt 80; $i++) {
+  $p = Get-Process -Id $pid -ErrorAction SilentlyContinue
+  if (-not $p) { break }
+  Start-Sleep -Milliseconds 200
+}
+
+Copy-Item -Force $newExe $targetExe
+Remove-Item -Force $newExe -ErrorAction SilentlyContinue
+Remove-Item -Force (Join-Path "${updatesDir.replace(/"/g, '""')}" "version.json") -ErrorAction SilentlyContinue
+Start-Process -FilePath $targetExe -WorkingDirectory (Split-Path -Parent $targetExe)
+`
+
+      const tempPs = path.join(app.getPath('temp'), `rs-stock-apply-update-${Date.now()}.ps1`)
+      await fs.promises.writeFile(tempPs, psScript, 'utf8')
+
+      const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tempPs], {
+        detached: true,
+        stdio: 'ignore'
+      })
+      child.unref()
+
+      // Quit the app; the PS script will relaunch after copying.
+      setTimeout(() => app.quit(), 150)
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: String(err?.message || err) }
+    }
+  })
+
+  ipcMain.handle('rs-auto-update-check', async () => {
+    try {
+      const result = await autoUpdater.checkForUpdates()
+      return { ok: true, result }
+    } catch (err) {
+      return { ok: false, error: String(err?.message || err) }
+    }
+  })
+
+  ipcMain.handle('rs-auto-update-download', async () => {
+    try {
+      await autoUpdater.downloadUpdate()
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: String(err?.message || err) }
+    }
+  })
+
+  ipcMain.handle('rs-auto-update-install', async () => {
+    try {
+      // Will quit and relaunch.
+      autoUpdater.quitAndInstall(true, true)
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: String(err?.message || err) }
     }
   })
 })

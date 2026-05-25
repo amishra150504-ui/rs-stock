@@ -27,3 +27,8 @@ npm-debug.log*
 .firebase/
 .eb-cache/
 rollback_*/
+
+# Local debug artifacts
+RS-DEBUG/
+RS-DEBUG.zip
+src/supabaseClient.js

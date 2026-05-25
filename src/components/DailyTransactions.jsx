@@ -41,18 +41,74 @@ export default function DailyTransactions({
   entries,
   setEntries,
   currentUser,
-  items
+  items,
+  companyId,
+  onPurchase,
+  onSale
 }) {
   const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState({})
   const [selected, setSelected] = useState(new Set())
   const hasDistributorEntries = dailyEntries.some((entry) => entry.entryKind === 'distributor-sale')
 
-  // 🔍 Filters
+  const isRsTraders = companyId === 'rs_traders'
+
+  // Filters
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+
+  const [dateFrom, setDateFrom] = useState('')
+
+  const [dateTo, setDateTo] = useState('')
+
+  // RS TRADERS: staged filters for Apply/Reset UX
+  const [pendingSearch, setPendingSearch] = useState('')
+  const [pendingTypeFilter, setPendingTypeFilter] = useState('all')
+  const [pendingCategoryFilter, setPendingCategoryFilter] = useState('all')
+  const [pendingDateFrom, setPendingDateFrom] = useState('')
+  const [pendingDateTo, setPendingDateTo] = useState('')
+  const [showFilters, setShowFilters] = useState(true)
+
+  const applyFilters = () => {
+    if (!isRsTraders) return
+    setSearch(pendingSearch)
+    setTypeFilter(pendingTypeFilter)
+    setCategoryFilter(pendingCategoryFilter)
+    setDateFrom(pendingDateFrom)
+    setDateTo(pendingDateTo)
+  }
+
+  const resetFilters = () => {
+    if (!isRsTraders) {
+      setSearch('')
+      setTypeFilter('all')
+      setDateFilter('')
+      setCategoryFilter('all')
+      return
+    }
+    setPendingSearch('')
+    setPendingTypeFilter('all')
+    setPendingCategoryFilter('all')
+    setPendingDateFrom('')
+    setPendingDateTo('')
+    setSearch('')
+    setTypeFilter('all')
+    setCategoryFilter('all')
+    setDateFrom('')
+    setDateTo('')
+  }
+
+  const formatRangeLabel = (from, to) => {
+    const fmt = (v) => {
+      if (!v) return 'dd/mm/yyyy'
+      const [yy, mm, dd] = String(v).split('-')
+      if (!yy || !mm || !dd) return 'dd/mm/yyyy'
+      return `${dd}/${mm}/${yy}`
+    }
+    return `${fmt(from)} - ${fmt(to)}`
+  }
 
   const start = (entry) => {
     if (currentUser?.role === 'staff') return
@@ -152,7 +208,12 @@ export default function DailyTransactions({
     const searchText = `${d.item || ''} ${d.distributorCompany || ''} ${d.sellingParty || ''}`.toLowerCase()
     if (search && !searchText.includes(search.toLowerCase())) return false
     if (typeFilter !== 'all' && d.type !== typeFilter) return false
-    if (dateFilter && d.date !== dateFilter) return false
+    if (!isRsTraders) {
+      if (dateFilter && d.date !== dateFilter) return false
+    } else {
+      if (dateFrom && (d.date || '') < dateFrom) return false
+      if (dateTo && (d.date || '') > dateTo) return false
+    }
     if (categoryFilter !== 'all' && itemObj?.category !== categoryFilter) return false
 
     return true
@@ -268,8 +329,29 @@ export default function DailyTransactions({
         </div>
       </div>
 
-      <div className="toolbar">
-        <button onClick={() => exportReport('png')} className="btn btn-blue">
+      <div className="toolbar daily-actions">
+        {isRsTraders && (
+          <>
+            <button
+              onClick={() => onPurchase?.()}
+              className="btn btn-blue btn-action"
+              type="button"
+              title="Go to Stock Entry (Purchase)"
+            >
+              + Purchase
+            </button>
+            <button
+              onClick={() => onSale?.()}
+              className="btn btn-green btn-action"
+              type="button"
+              title="Go to Stock Entry (Sale)"
+            >
+              ↗ Sale
+            </button>
+          </>
+        )}
+
+        <button onClick={() => exportReport('png')} className={`btn ${isRsTraders ? 'btn-purple' : 'btn-blue'}`}>
           Export PNG
         </button>
 
@@ -280,12 +362,91 @@ export default function DailyTransactions({
         <button onClick={deleteSelected} className="btn btn-orange">
           Delete Selected
         </button>
+
+        {isRsTraders && (
+          <div className="daily-actions-right no-export">
+            <button
+              className="daily-range-btn"
+              type="button"
+              title="Date range"
+              onClick={() => setShowFilters(true)}
+            >
+              📅 {formatRangeLabel(pendingDateFrom, pendingDateTo)}
+            </button>
+            <button
+              className="daily-filters-toggle"
+              type="button"
+              onClick={() => setShowFilters((v) => !v)}
+              title="Toggle filters"
+            >
+              ⛭ Filters
+            </button>
+          </div>
+        )}
       </div>
+
+      {isRsTraders && showFilters && (
+        <div className="daily-filters no-export" role="region" aria-label="Daily filters">
+          <div className="daily-filters-left">
+            <div className="daily-search">
+              <input
+                value={pendingSearch}
+                onChange={(e) => setPendingSearch(e.target.value)}
+                placeholder="Search item..."
+              />
+            </div>
+
+            <div className="daily-filter">
+              <div className="daily-filter-label">Category</div>
+              <select value={pendingCategoryFilter} onChange={(e) => setPendingCategoryFilter(e.target.value)}>
+                <option value="all">All Categories</option>
+                {[...new Set(items?.map((i) => i.category))].filter(Boolean).map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="daily-filter">
+              <div className="daily-filter-label">Type</div>
+              <select value={pendingTypeFilter} onChange={(e) => setPendingTypeFilter(e.target.value)}>
+                <option value="all">All Types</option>
+                <option value="Stock In">Stock In</option>
+                <option value="Stock Out">Stock Out</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="daily-filters-right">
+            <div className="daily-date-range" aria-label="Date range">
+              <input
+                type="date"
+                value={pendingDateFrom}
+                onChange={(e) => setPendingDateFrom(e.target.value)}
+                aria-label="From date"
+              />
+              <span className="daily-date-sep">—</span>
+              <input
+                type="date"
+                value={pendingDateTo}
+                onChange={(e) => setPendingDateTo(e.target.value)}
+                aria-label="To date"
+              />
+            </div>
+
+            <button className="daily-btn daily-btn-ghost" onClick={resetFilters} type="button">
+              Reset
+            </button>
+            <button className="daily-btn daily-btn-primary" onClick={applyFilters} type="button">
+              Apply Filters
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* EXPORT WRAPPER */}
       <div id="daily-export">
         <div className="table-wrap">
-          <table className="sheet">
+          <table className={`sheet${isRsTraders ? ' sheet-light' : ''}`}>
             <thead>
               <tr>
                 <th className="no-export" style={{ width: 42, textAlign: 'center' }}>
@@ -295,23 +456,31 @@ export default function DailyTransactions({
                     onChange={(e) => toggleSelectAll(e.target.checked)}
                   />
                 </th>
-                <th>
-                  Item 🔍
-                  <div className="no-export">
-                    <input
-                      value={search}
-                      onChange={e => setSearch(e.target.value)}
-                      placeholder="Search..."
-                      style={{ width: '100%', marginTop: 4, padding: '4px 6px', borderRadius: 6, fontSize: '12px' }}
-                    />
-                  </div>
-                </th> 
+                {isRsTraders ? (
+                  <>
+                    <th style={{ textAlign: 'center' }}>Date ⇅</th>
+                    <th>Item ⇅</th>
+                  </>
+                ) : (
+                  <th>
+                    Item 🔍
+                    <div className="no-export">
+                      <input
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        placeholder="Search..."
+                        style={{ width: '100%', marginTop: 4, padding: '4px 6px', borderRadius: 6, fontSize: '12px' }}
+                      />
+                    </div>
+                  </th>
+                )} 
 
                 {hasDistributorEntries && <th style={{ textAlign: 'center' }}>Distributor Company</th>}
                 {hasDistributorEntries && <th style={{ textAlign: 'center' }}>Selling Party</th>}
 
                 <th style={{ textAlign: 'center' }}>
-                  Category 📁
+                  {isRsTraders ? 'Category ⇅' : 'Category 📁'}
+                  {!isRsTraders && (
                   <div className="no-export">
                     <select
                       value={categoryFilter}
@@ -324,10 +493,12 @@ export default function DailyTransactions({
                       ))}
                     </select>
                   </div>
+                  )}
                 </th> 
 
                 <th style={{ textAlign: 'center' }}>
-                  Type ⚙
+                  {isRsTraders ? 'Type ⇅' : 'Type ⚙'}
+                  {!isRsTraders && (
                   <div className="no-export">
                     <select
                       value={typeFilter}
@@ -339,22 +510,25 @@ export default function DailyTransactions({
                       <option>Stock Out</option>
                     </select>
                   </div>
+                  )}
                 </th>
 
-                <th style={{ textAlign: 'center' }}>KG</th>
-                <th style={{ textAlign: 'center' }}>PCS</th>
+                <th style={{ textAlign: 'center' }}>{isRsTraders ? 'KG ⇅' : 'KG'}</th>
+                <th style={{ textAlign: 'center' }}>{isRsTraders ? 'PCS ⇅' : 'PCS'}</th>
 
-                <th style={{ textAlign: 'center' }}>
-                  Date 📅
-                  <div className="no-export">
-                    <input
-                      type="date"
-                      value={dateFilter}
-                      onChange={e => setDateFilter(e.target.value)}
-                      style={{ width: '100%', marginTop: 4, padding: '4px', borderRadius: 6, fontSize: '12px' }}
-                    />
-                  </div>
-                </th>
+                {!isRsTraders && (
+                  <th style={{ textAlign: 'center' }}>
+                    Date 📅
+                    <div className="no-export">
+                      <input
+                        type="date"
+                        value={dateFilter}
+                        onChange={e => setDateFilter(e.target.value)}
+                        style={{ width: '100%', marginTop: 4, padding: '4px', borderRadius: 6, fontSize: '12px' }}
+                      />
+                    </div>
+                  </th>
+                )}
 
                 <th style={{ textAlign: 'center' }}>Remarks</th>
                 <th style={{ textAlign: 'center' }}>Actions</th>
@@ -371,6 +545,17 @@ export default function DailyTransactions({
                       onChange={() => toggleSelect(d.originalIndex)}
                     />
                   </td>
+
+                  {isRsTraders && (
+                    <td style={{ textAlign: 'center' }}>
+                      {editing === d.originalIndex ? (
+                        <input type="date" value={draft.date || ''} onChange={e => setDraft({ ...draft, date: e.target.value })} />
+                      ) : (
+                        d.date
+                      )}
+                    </td>
+                  )}
+
                   <td>
                     {editing === d.originalIndex ? (
                       <input value={draft.item || ''} onChange={e => setDraft({ ...draft, item: e.target.value })} />
@@ -387,7 +572,7 @@ export default function DailyTransactions({
                       {editing === d.originalIndex ? (
                         <input value={draft.distributorCompany || ''} onChange={e => setDraft({ ...draft, distributorCompany: e.target.value })} />
                       ) : (
-                        d.distributorCompany || '�'
+                        d.distributorCompany || '—'
                       )}
                     </td>
                   )}
@@ -397,7 +582,7 @@ export default function DailyTransactions({
                       {editing === d.originalIndex ? (
                         <input value={draft.sellingParty || ''} onChange={e => setDraft({ ...draft, sellingParty: e.target.value })} />
                       ) : (
-                        d.sellingParty || '�'
+                        d.sellingParty || '—'
                       )}
                     </td>
                   )}
@@ -439,13 +624,15 @@ export default function DailyTransactions({
                   </td>
 
 
-                  <td style={{ textAlign: 'center' }}>
-                    {editing === d.originalIndex ? (
-                      <input type="date" value={draft.date || ''} onChange={e => setDraft({ ...draft, date: e.target.value })} />
-                    ) : (
-                      d.date
-                    )}
-                  </td>
+                  {!isRsTraders && (
+                    <td style={{ textAlign: 'center' }}>
+                      {editing === d.originalIndex ? (
+                        <input type="date" value={draft.date || ''} onChange={e => setDraft({ ...draft, date: e.target.value })} />
+                      ) : (
+                        d.date
+                      )}
+                    </td>
+                  )}
 
                   <td style={{ textAlign: 'center' }}>
                     {editing === d.originalIndex ? (
@@ -537,4 +724,3 @@ export default function DailyTransactions({
     </section>
   )
 }
-

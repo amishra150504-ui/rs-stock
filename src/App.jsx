@@ -128,6 +128,9 @@ export default function App() {
   const buildInfo = typeof __BUILD_INFO__ !== 'undefined' ? __BUILD_INFO__ : null
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [updateInfo, setUpdateInfo] = useState(null)
+  const [updateStatus, setUpdateStatus] = useState('')
+  const [updateDownloading, setUpdateDownloading] = useState(false)
+  const [updateProgress, setUpdateProgress] = useState(null)
 
   const [items, setItems] = useState([])
   const [entries, setEntries] = useState([])
@@ -215,12 +218,53 @@ export default function App() {
     const isFile = protocol === 'file:'
     if (!buildInfo || (!isWeb && !isFile)) return
 
+    // Packaged desktop: listen for electron-updater events (no storage touch)
+    let cleanup = null
+    if (isFile && window.rsStore?.onUpdateEvent) {
+      cleanup = window.rsStore.onUpdateEvent((type, payload) => {
+        if (type === 'rs-update-available') {
+          setUpdateAvailable(true)
+          setUpdateInfo(payload || {})
+          setUpdateStatus('Update available')
+        } else if (type === 'rs-update-not-available') {
+          setUpdateAvailable(false)
+          setUpdateInfo(null)
+          setUpdateStatus('')
+          setUpdateDownloading(false)
+          setUpdateProgress(null)
+        } else if (type === 'rs-update-download-progress') {
+          setUpdateDownloading(true)
+          setUpdateProgress(payload || null)
+        } else if (type === 'rs-update-downloaded') {
+          setUpdateAvailable(true)
+          setUpdateInfo(payload || {})
+          setUpdateDownloading(false)
+          setUpdateProgress(null)
+          setUpdateStatus('Update ready to install')
+        } else if (type === 'rs-update-error') {
+          setUpdateStatus(String(payload || 'Update error'))
+          setUpdateDownloading(false)
+        }
+      })
+      // Kick off a check once at startup.
+      void window.rsStore.autoUpdateCheck?.()
+      return () => cleanup?.()
+    }
+
     let active = true
     const checkForUpdate = async () => {
       try {
-        const res = await fetch(`version.json?ts=${Date.now()}`, { cache: 'no-store' })
-        if (!res.ok) return
-        const data = await res.json()
+        let data = null
+        if (isFile && window.rsStore?.checkUpdate) {
+          const currentBuildTime = buildInfo?.buildTime || buildInfo?.version || ''
+          const result = await window.rsStore.checkUpdate({ currentBuildTime })
+          if (result?.available) data = result?.info || {}
+        } else {
+          const res = await fetch(`version.json?ts=${Date.now()}`, { cache: 'no-store' })
+          if (!res.ok) return
+          data = await res.json()
+        }
+        if (!data) return
         const remoteId = data?.buildTime || data?.version
         const currentId = buildInfo?.buildTime || buildInfo?.version
         if (remoteId && currentId && remoteId !== currentId && active) {
@@ -655,6 +699,22 @@ export default function App() {
   }
 
   const handleDesktopUpdate = () => {
+    // Prefer electron-updater in packaged desktop apps.
+    if (window.location.protocol === 'file:' && window.rsStore?.autoUpdateDownload) {
+      if (updateStatus === 'Update ready to install' && window.rsStore?.autoUpdateInstall) {
+        void window.rsStore.autoUpdateInstall()
+        return
+      }
+      void window.rsStore.autoUpdateDownload()
+      return
+    }
+
+    // Fallback: old in-place update mechanism.
+    if (window.rsStore?.applyUpdate) {
+      void window.rsStore.applyUpdate()
+      return
+    }
+
     window.location.reload()
   }
 
@@ -954,10 +1014,18 @@ export default function App() {
               <button
                 className="update-btn"
                 onClick={window.location.protocol === 'file:' ? handleDesktopUpdate : handleUpdateApp}
-                title={`Update available${updateInfo?.version ? ` (v${updateInfo.version})` : ''}`}
+                title={
+                  updateStatus
+                    ? updateStatus
+                    : `Update available${updateInfo?.version ? ` (v${updateInfo.version})` : ''}`
+                }
               >
                 <span className="update-dot" />
-                Update Available
+                {updateStatus === 'Update ready to install'
+                  ? 'Install Update'
+                  : updateDownloading
+                    ? 'Downloading…'
+                    : 'Update Available'}
               </button>
             )}
             {isInCompany && <div className="topbar-time">{topbarTime} IST</div>}
@@ -1107,6 +1175,9 @@ export default function App() {
                 setEntries={setEntriesCloud}
                 currentUser={currentUser}
                 items={items}
+                companyId={company?.id}
+                onPurchase={() => setPage('stock')}
+                onSale={() => setPage('stock')}
               />
             )}
             {!company.stockEnabled && page === 'sales' && (
