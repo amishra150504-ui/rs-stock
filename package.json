@@ -2,7 +2,7 @@
     "name":  "rs-stock",
     "displayName":  "Management System",
     "private":  true,
-    "version":  "0.1.1",
+    "version":  "0.1.2",
     "description":  "Professional stock management application for RS enterprises",
     "type":  "module",
     "main":  "electron.js",
@@ -37,7 +37,8 @@
                                   {
                                       "provider":  "github",
                                       "owner":  "amishra150504-ui",
-                                      "repo":  "rs-stock"
+                                      "repo":  "rs-stock",
+                                      "releaseType":  "release"
                                   }
                               ],
                   "win":  {
