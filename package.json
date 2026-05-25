@@ -25,7 +25,8 @@
                   "appId":  "com.rsstockmanagement.app",
                   "productName":  "Management System",
                   "directories":  {
-                                      "buildResources":  "public"
+                                      "buildResources":  "public",
+                                      "output":  "release-dist"
                                   },
                   "files":  [
                                 "dist/**/*",
