@@ -4,7 +4,9 @@ import { fileURLToPath } from 'url'
 import http from 'http'
 import fs from 'fs'
 import { spawn } from 'child_process'
-import { autoUpdater } from 'electron-updater'
+import updater from 'electron-updater'
+
+const { autoUpdater } = updater
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
