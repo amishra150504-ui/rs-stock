@@ -218,7 +218,6 @@ export default function App() {
     const protocol = window.location.protocol
     const isWeb = protocol === 'http:' || protocol === 'https:'
     const isFile = protocol === 'file:'
-    if (!buildInfo || (!isWeb && !isFile)) return
 
     // Packaged desktop: listen for electron-updater events (no storage touch)
     let cleanup = null
@@ -250,6 +249,7 @@ export default function App() {
         } else if (type === 'rs-update-error') {
           setUpdateStatus(String(payload || 'Update error'))
           setUpdateDownloading(false)
+          setUpdateUnread(true)
         }
       })
       // Kick off a check once at startup.
@@ -260,6 +260,8 @@ export default function App() {
         cleanup?.()
       }
     }
+
+    if (!buildInfo || (!isWeb && !isFile)) return
 
     let active = true
     const checkForUpdate = async () => {
@@ -729,7 +731,13 @@ export default function App() {
   }
 
   const openUpdatePanel = () => {
-    setShowUpdatePanel((v) => !v)
+    setShowUpdatePanel((v) => {
+      const next = !v
+      if (next && window.location.protocol === 'file:' && window.rsStore?.autoUpdateCheck) {
+        void window.rsStore.autoUpdateCheck()
+      }
+      return next
+    })
     setUpdateUnread(false)
   }
 
@@ -741,6 +749,13 @@ export default function App() {
         await window.rsStore.autoUpdateInstall()
         return
       }
+
+      if (!updateAvailable) {
+        setUpdateStatus('Checking for updates...')
+        await window.rsStore.autoUpdateCheck?.()
+        return
+      }
+
       setUpdateStatus('Downloading update...')
       await window.rsStore.autoUpdateDownload()
       return
@@ -1042,17 +1057,17 @@ export default function App() {
                 Dashboard
               </button>
             )}
-            {updateAvailable && (
+            {window.location.protocol === 'file:' && window.rsStore?.onUpdateEvent && (
               <div className="update-wrap">
               <button
                 className="update-icon"
                 onClick={openUpdatePanel}
                 aria-label="Updates"
                 type="button"
-                title={updateStatus || 'Update available'}
+                title={updateStatus || (updateAvailable ? 'Update available' : 'Check for updates')}
               >
                 <span className="update-bell" aria-hidden="true">U</span>
-                {updateUnread && <span className="update-badge" aria-hidden="true" />}
+                {(updateUnread || updateAvailable) && <span className="update-badge" aria-hidden="true" />}
                 {/* legacy label removed
                     ? 'Downloading…'
                     : 'Update Available'}
@@ -1071,7 +1086,7 @@ export default function App() {
                     <div className="update-panel-row">
                       <span className="update-label">Status</span>
                       <span className="update-value">
-                        {updateStatus || 'Update available'}
+                        {updateStatus || (updateAvailable ? 'Update available' : 'Up to date')}
                         {updateInfo?.version ? ` (v${updateInfo.version})` : ''}
                       </span>
                     </div>
@@ -1092,7 +1107,11 @@ export default function App() {
                     )}
                     <div className="update-panel-actions">
                       <button className="daily-btn daily-btn-primary" type="button" onClick={handleUpdateAction}>
-                        {updateStatus === 'Update ready to install' ? 'Restart & Install' : 'Download update'}
+                        {updateStatus === 'Update ready to install'
+                          ? 'Restart & Install'
+                          : updateAvailable
+                            ? 'Download update'
+                            : 'Check updates'}
                       </button>
                     </div>
                   </div>
