@@ -543,9 +543,34 @@ export default function DailyTransactions({
                 title="Pick date range"
                 onClick={() => setShowDatePicker((v) => !v)}
               >
-                <span className="daily-range-ico" aria-hidden="true">Date</span>
+                <span className="daily-range-ico" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M8 3v2M16 3v2M4.5 8.5h15"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M6.5 5h11A2.5 2.5 0 0 1 20 7.5v11A2.5 2.5 0 0 1 17.5 21h-11A2.5 2.5 0 0 1 4 18.5v-11A2.5 2.5 0 0 1 6.5 5Z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
                 <span className="daily-range-text">{rangeSummaryLabel(pendingDateFrom, pendingDateTo)}</span>
-                <span className="daily-range-caret" aria-hidden="true">v</span>
+                <span className="daily-range-caret" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M6 9l6 6 6-6"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
               </button>
 
               {showDatePicker && (
