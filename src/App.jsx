@@ -1182,6 +1182,14 @@ export default function App() {
                 backupStatus={globalBackupStatus}
                 backupError={globalBackupError}
                 backupBusy={globalBackupBusy}
+                appVersion={buildInfo?.version || ''}
+                updateAvailable={updateAvailable}
+                updateVersion={updateInfo?.version || ''}
+                onOpenUpdates={() => {
+                  if (window.location.protocol === 'file:' && window.rsStore?.onUpdateEvent) {
+                    openUpdatePanel()
+                  }
+                }}
               />
             )}
           </>

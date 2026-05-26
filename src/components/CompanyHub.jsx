@@ -8,7 +8,11 @@ export default function CompanyHub({
   onExportAllBackup,
   backupStatus,
   backupError,
-  backupBusy
+  backupBusy,
+  appVersion,
+  updateAvailable,
+  updateVersion,
+  onOpenUpdates
 }) {
   const isAdmin = String(currentUser?.role || '').toLowerCase() === 'admin'
   const displayName = currentUser?.name || currentUser?.id || 'User'
@@ -70,6 +74,21 @@ export default function CompanyHub({
             <span className="company-hub-meta-chip">{roleLabel}</span>
             <span className="company-hub-meta-chip">{todayLabel}</span>
             <span className="company-hub-meta-chip">{timeLabel}</span>
+          </div>
+          <div className="company-hub-version-row" aria-label="App version">
+            <span className="company-hub-version">
+              App v{String(appVersion || '').trim() || '0.0.0'}
+            </span>
+            {updateAvailable && (
+              <button
+                type="button"
+                className="company-hub-update-pill"
+                onClick={() => onOpenUpdates?.()}
+                title={updateVersion ? `Update available (v${updateVersion})` : 'Update available'}
+              >
+                Update available{updateVersion ? ` (v${updateVersion})` : ''}
+              </button>
+            )}
           </div>
         </div>
         <div className="company-hub-hero-card">
