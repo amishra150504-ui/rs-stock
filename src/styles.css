@@ -3268,7 +3268,12 @@ input:focus {
 .daily-btn:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(15,23,42,0.12)}
 .daily-btn:active{transform:translateY(0)}
 
-.sheet-light thead th{background:#ffffff!important;color:#334155!important;box-shadow:none!important;border-bottom:1px solid #e6eef6}
+.sheet-light thead th{
+  background:linear-gradient(180deg,#ffffff 0%, #f1f5ff 100%)!important;
+  color:#0f172a!important;
+  box-shadow:none!important;
+  border-bottom:1px solid #dbeafe;
+}
 .btn{border:none;padding:10px 16px;border-radius:10px;font-weight:700;cursor:pointer;transition:transform .15s ease,box-shadow .2s ease}
 .btn:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(15,23,42,.12)}
 .btn:active{transform:translateY(0)}
