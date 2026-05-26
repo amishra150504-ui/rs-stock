@@ -538,9 +538,9 @@ export default function DailyTransactions({
                 title="Pick date range"
                 onClick={() => setShowDatePicker((v) => !v)}
               >
-                <span className="daily-range-ico" aria-hidden="true">📅</span>
+                <span className="daily-range-ico" aria-hidden="true">Date</span>
                 <span className="daily-range-text">{rangeSummaryLabel(pendingDateFrom, pendingDateTo)}</span>
-                <span className="daily-range-caret" aria-hidden="true">▾</span>
+                <span className="daily-range-caret" aria-hidden="true">v</span>
               </button>
 
               {showDatePicker && (
@@ -554,7 +554,7 @@ export default function DailyTransactions({
                         aria-label="Previous month"
                         onClick={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
                       >
-                        ‹
+                        &lt;
                       </button>
                       <div className="daily-cal-month-label">{monthLabel(calendarMonth)}</div>
                       <button
@@ -563,7 +563,7 @@ export default function DailyTransactions({
                         aria-label="Next month"
                         onClick={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
                       >
-                        ›
+                        &gt;
                       </button>
                     </div>
                     <input
