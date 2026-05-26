@@ -3269,6 +3269,8 @@ input:focus {
 .daily-chip:hover{box-shadow:0 10px 20px rgba(15,23,42,0.10)}
 .daily-chip-ghost{background:#fff;border-style:dashed;color:#334155}
 
+.daily-date-hint{margin:2px 0 10px;color:#475569;font-weight:800;font-size:12px}
+
 .daily-cal-grid{border:1px solid #e2e8f0;border-radius:14px;padding:10px;background:linear-gradient(180deg,#ffffff,#f8fafc)}
 .daily-cal-week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:8px}
 .daily-cal-dow{font-size:11px;font-weight:900;color:#64748b;text-align:center}

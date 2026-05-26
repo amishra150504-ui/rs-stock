@@ -80,6 +80,7 @@ export default function DailyTransactions({
   })
   const [calendarStart, setCalendarStart] = useState('')
   const [calendarEnd, setCalendarEnd] = useState('')
+  const [calendarHover, setCalendarHover] = useState('')
 
   const isoToDate = (iso) => {
     if (!iso) return null
@@ -203,6 +204,7 @@ export default function DailyTransactions({
     if (!calendarStart || (calendarStart && calendarEnd)) {
       setCalendarStart(pickedIso)
       setCalendarEnd('')
+      setCalendarHover('')
       return
     }
 
@@ -210,9 +212,11 @@ export default function DailyTransactions({
       if (pickedIso < calendarStart) {
         setCalendarEnd(calendarStart)
         setCalendarStart(pickedIso)
+        setCalendarHover('')
         return
       }
       setCalendarEnd(pickedIso)
+      setCalendarHover('')
     }
   }
 
@@ -264,6 +268,7 @@ export default function DailyTransactions({
     setCalendarMonth(new Date(base.getFullYear(), base.getMonth(), 1))
     setCalendarStart(pendingDateFrom || '')
     setCalendarEnd(pendingDateTo || '')
+    setCalendarHover('')
 
     const onDoc = (e) => {
       const node = datePickerWrapRef.current
@@ -588,6 +593,10 @@ export default function DailyTransactions({
                     <button className="daily-chip daily-chip-ghost" type="button" onClick={resetDateRange}>Clear</button>
                   </div>
 
+                  <div className="daily-date-hint" aria-label="How to select">
+                    Click a start date, then click an end date. Hover previews the range.
+                  </div>
+
                   <div className="daily-cal-grid" aria-label="Calendar">
                     <div className="daily-cal-week">
                       {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
@@ -599,7 +608,7 @@ export default function DailyTransactions({
                         if (!day) return <div key={`b-${idx}`} className="daily-cal-cell daily-cal-blank" />
 
                         const s = isoToDate(calendarStart)
-                        const e = isoToDate(calendarEnd)
+                        const e = isoToDate(calendarEnd || (calendarStart && !calendarEnd ? calendarHover : ''))
                         const isStart = isSameDay(day, s)
                         const isEnd = isSameDay(day, e)
                         const inRange = isWithin(day, s, e)
@@ -615,6 +624,14 @@ export default function DailyTransactions({
                               isEnd ? 'is-end' : ''
                             ].filter(Boolean).join(' ')}
                             onClick={() => onCalendarPick(day)}
+                            onMouseEnter={() => {
+                              if (!calendarStart || calendarEnd) return
+                              setCalendarHover(dateToIso(day))
+                            }}
+                            onMouseLeave={() => {
+                              if (!calendarStart || calendarEnd) return
+                              setCalendarHover('')
+                            }}
                             aria-label={day.toLocaleDateString()}
                           >
                             {day.getDate()}
