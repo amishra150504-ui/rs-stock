@@ -131,6 +131,8 @@ export default function App() {
   const [updateStatus, setUpdateStatus] = useState('')
   const [updateDownloading, setUpdateDownloading] = useState(false)
   const [updateProgress, setUpdateProgress] = useState(null)
+  const [updateUnread, setUpdateUnread] = useState(false)
+  const [showUpdatePanel, setShowUpdatePanel] = useState(false)
 
   const [items, setItems] = useState([])
   const [entries, setEntries] = useState([])
@@ -226,12 +228,15 @@ export default function App() {
           setUpdateAvailable(true)
           setUpdateInfo(payload || {})
           setUpdateStatus('Update available')
+          setUpdateUnread(true)
         } else if (type === 'rs-update-not-available') {
           setUpdateAvailable(false)
           setUpdateInfo(null)
           setUpdateStatus('')
           setUpdateDownloading(false)
           setUpdateProgress(null)
+          setUpdateUnread(false)
+          setShowUpdatePanel(false)
         } else if (type === 'rs-update-download-progress') {
           setUpdateDownloading(true)
           setUpdateProgress(payload || null)
@@ -241,6 +246,7 @@ export default function App() {
           setUpdateDownloading(false)
           setUpdateProgress(null)
           setUpdateStatus('Update ready to install')
+          setUpdateUnread(true)
         } else if (type === 'rs-update-error') {
           setUpdateStatus(String(payload || 'Update error'))
           setUpdateDownloading(false)
@@ -248,7 +254,11 @@ export default function App() {
       })
       // Kick off a check once at startup.
       void window.rsStore.autoUpdateCheck?.()
-      return () => cleanup?.()
+      const timer = setInterval(() => void window.rsStore.autoUpdateCheck?.(), 30 * 60 * 1000)
+      return () => {
+        clearInterval(timer)
+        cleanup?.()
+      }
     }
 
     let active = true
@@ -718,6 +728,28 @@ export default function App() {
     window.location.reload()
   }
 
+  const openUpdatePanel = () => {
+    setShowUpdatePanel((v) => !v)
+    setUpdateUnread(false)
+  }
+
+  const closeUpdatePanel = () => setShowUpdatePanel(false)
+
+  const handleUpdateAction = async () => {
+    if (window.location.protocol === 'file:' && window.rsStore?.autoUpdateDownload) {
+      if (updateStatus === 'Update ready to install' && window.rsStore?.autoUpdateInstall) {
+        await window.rsStore.autoUpdateInstall()
+        return
+      }
+      setUpdateStatus('Downloading update...')
+      await window.rsStore.autoUpdateDownload()
+      return
+    }
+
+    // Web fallback: refresh with cache-buster.
+    handleUpdateApp()
+  }
+
   const handleGoDashboard = () => {
     setPage('dashboard')
     setSidebarOpen(false)
@@ -1011,25 +1043,65 @@ export default function App() {
               </button>
             )}
             {updateAvailable && (
+              <div className="update-wrap">
               <button
-                className="update-btn"
-                onClick={window.location.protocol === 'file:' ? handleDesktopUpdate : handleUpdateApp}
-                title={
-                  updateStatus
-                    ? updateStatus
-                    : `Update available${updateInfo?.version ? ` (v${updateInfo.version})` : ''}`
-                }
+                className="update-icon"
+                onClick={openUpdatePanel}
+                aria-label="Updates"
+                type="button"
+                title={updateStatus || 'Update available'}
               >
-                <span className="update-dot" />
-                {updateStatus === 'Update ready to install'
-                  ? 'Install Update'
-                  : updateDownloading
+                <span className="update-bell" aria-hidden="true">U</span>
+                {updateUnread && <span className="update-badge" aria-hidden="true" />}
+                {/* legacy label removed
                     ? 'Downloading…'
                     : 'Update Available'}
+                */}
               </button>
+
+              {showUpdatePanel && (
+                <div className="update-panel" role="dialog" aria-label="Updates">
+                  <div className="update-panel-head">
+                    <div className="update-panel-title">Update</div>
+                    <button className="update-panel-close" type="button" onClick={closeUpdatePanel} aria-label="Close">
+                      ×
+                    </button>
+                  </div>
+                  <div className="update-panel-body">
+                    <div className="update-panel-row">
+                      <span className="update-label">Status</span>
+                      <span className="update-value">
+                        {updateStatus || 'Update available'}
+                        {updateInfo?.version ? ` (v${updateInfo.version})` : ''}
+                      </span>
+                    </div>
+                    {updateDownloading && (
+                      <div className="update-progress">
+                        <div className="update-progress-bar">
+                          <div
+                            className="update-progress-fill"
+                            style={{ width: `${Math.min(100, Math.max(0, Number(updateProgress?.percent || 0)))}%` }}
+                          />
+                        </div>
+                        <div className="update-progress-meta">
+                          {Number.isFinite(Number(updateProgress?.percent))
+                            ? `${Math.round(Number(updateProgress?.percent))}%`
+                            : 'Downloading...'}
+                        </div>
+                      </div>
+                    )}
+                    <div className="update-panel-actions">
+                      <button className="daily-btn daily-btn-primary" type="button" onClick={handleUpdateAction}>
+                        {updateStatus === 'Update ready to install' ? 'Restart & Install' : 'Download update'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
             )}
             {isInCompany && <div className="topbar-time">{topbarTime} IST</div>}
-              {syncError && <span className="sync-note sync-error">{syncError}</span>}
+            {syncError && <span className="sync-note sync-error">{syncError}</span>}
             <div
               className={`profile-icon role-icon ${isAdmin ? 'role-admin' : 'role-staff'}`}
               title={userLabel}
@@ -1047,7 +1119,27 @@ export default function App() {
         </header>
       )}
 
-        <main className={`main${isAuthenticated ? '' : ' main-login'}`}>
+      {updateDownloading && (
+        <div className="update-overlay" aria-label="Downloading update">
+          <div className="update-overlay-card">
+            <div className="update-overlay-title">Updating...</div>
+            <div className="update-overlay-sub">
+              Downloading update{updateInfo?.version ? ` (v${updateInfo.version})` : ''}
+            </div>
+            <div className="update-progress-bar update-progress-bar-lg">
+              <div
+                className="update-progress-fill"
+                style={{ width: `${Math.min(100, Math.max(0, Number(updateProgress?.percent || 0)))}%` }}
+              />
+            </div>
+            <div className="update-overlay-meta">
+              {Number.isFinite(Number(updateProgress?.percent)) ? `${Math.round(Number(updateProgress?.percent))}%` : '...'}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <main className={`main${isAuthenticated ? '' : ' main-login'}`}>
           {!currentUser ? (
             <Login setCurrentUser={setCurrentUser} users={users} />
           ) : loading && isInCompany ? (
