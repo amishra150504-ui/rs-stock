@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import { normalizeType } from '../utils/stockBalance'
@@ -72,13 +72,54 @@ export default function DailyTransactions({
   const [showFilters, setShowFilters] = useState(true)
   const [showDatePicker, setShowDatePicker] = useState(false)
 
-  const applyFilters = () => {
+  const datePickerWrapRef = useRef(null)
+
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
+  const [calendarStart, setCalendarStart] = useState('')
+  const [calendarEnd, setCalendarEnd] = useState('')
+
+  const isoToDate = (iso) => {
+    if (!iso) return null
+    const [yy, mm, dd] = String(iso).split('-').map(Number)
+    if (!yy || !mm || !dd) return null
+    return new Date(yy, mm - 1, dd, 12, 0, 0)
+  }
+
+  const dateToIso = (date) => {
+    if (!(date instanceof Date)) return ''
+    const yy = date.getFullYear()
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    const dd = String(date.getDate()).padStart(2, '0')
+    return `${yy}-${mm}-${dd}`
+  }
+
+  const clampRange = (fromIso, toIso) => {
+    if (!fromIso && !toIso) return { fromIso: '', toIso: '' }
+    if (fromIso && !toIso) return { fromIso, toIso: fromIso }
+    if (!fromIso && toIso) return { fromIso: toIso, toIso }
+    if (fromIso > toIso) return { fromIso: toIso, toIso: fromIso }
+    return { fromIso, toIso }
+  }
+
+  const applyFilters = (overrides = null) => {
     if (!isRsTraders) return
     setSearch(pendingSearch)
     setTypeFilter(pendingTypeFilter)
     setCategoryFilter(pendingCategoryFilter)
-    setDateFrom(pendingDateFrom)
-    setDateTo(pendingDateTo)
+
+    const nextFrom = overrides?.dateFrom ?? pendingDateFrom
+    const nextTo = overrides?.dateTo ?? pendingDateTo
+    const clamped = clampRange(nextFrom, nextTo)
+
+    setPendingDateFrom(clamped.fromIso)
+    setPendingDateTo(clamped.toIso)
+    setCalendarStart(clamped.fromIso)
+    setCalendarEnd(clamped.toIso)
+    setDateFrom(clamped.fromIso)
+    setDateTo(clamped.toIso)
     setShowDatePicker(false)
   }
 
@@ -103,6 +144,13 @@ export default function DailyTransactions({
     setShowDatePicker(false)
   }
 
+  const resetDateRange = () => {
+    setPendingDateFrom('')
+    setPendingDateTo('')
+    setCalendarStart('')
+    setCalendarEnd('')
+  }
+
   const formatRangeLabel = (from, to) => {
     const fmt = (v) => {
       if (!v) return 'dd/mm/yyyy'
@@ -112,6 +160,121 @@ export default function DailyTransactions({
     }
     return `${fmt(from)} - ${fmt(to)}`
   }
+
+  const rangeSummaryLabel = (fromIso, toIso) => {
+    if (!fromIso && !toIso) return 'Select dates'
+    const clamped = clampRange(fromIso, toIso)
+    return formatRangeLabel(clamped.fromIso, clamped.toIso)
+  }
+
+  const monthLabel = (date) => date.toLocaleString(undefined, { month: 'long', year: 'numeric' })
+
+  const calendarDays = useMemo(() => {
+    const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
+    const end = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0)
+    const leading = (start.getDay() + 6) % 7 // Monday=0
+    const totalDays = end.getDate()
+    const cells = []
+    for (let i = 0; i < leading; i++) cells.push(null)
+    for (let d = 1; d <= totalDays; d++) {
+      cells.push(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), d, 12, 0, 0))
+    }
+    return cells
+  }, [calendarMonth])
+
+  const isSameDay = (a, b) =>
+    a && b &&
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+
+  const isWithin = (d, a, b) => {
+    if (!d || !a || !b) return false
+    const t = d.getTime()
+    const lo = Math.min(a.getTime(), b.getTime())
+    const hi = Math.max(a.getTime(), b.getTime())
+    return t >= lo && t <= hi
+  }
+
+  const onCalendarPick = (pickedDate) => {
+    if (!pickedDate) return
+    const pickedIso = dateToIso(pickedDate)
+
+    if (!calendarStart || (calendarStart && calendarEnd)) {
+      setCalendarStart(pickedIso)
+      setCalendarEnd('')
+      return
+    }
+
+    if (!calendarEnd) {
+      if (pickedIso < calendarStart) {
+        setCalendarEnd(calendarStart)
+        setCalendarStart(pickedIso)
+        return
+      }
+      setCalendarEnd(pickedIso)
+    }
+  }
+
+  const setPreset = (kind) => {
+    const today = new Date()
+    const t = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0)
+
+    if (kind === 'today') {
+      const iso = dateToIso(t)
+      setCalendarStart(iso)
+      setCalendarEnd(iso)
+      setCalendarMonth(new Date(t.getFullYear(), t.getMonth(), 1))
+      return
+    }
+
+    if (kind === 'last7') {
+      const end = t
+      const start = new Date(end)
+      start.setDate(end.getDate() - 6)
+      setCalendarStart(dateToIso(start))
+      setCalendarEnd(dateToIso(end))
+      setCalendarMonth(new Date(end.getFullYear(), end.getMonth(), 1))
+      return
+    }
+
+    if (kind === 'thisMonth') {
+      const start = new Date(t.getFullYear(), t.getMonth(), 1, 12, 0, 0)
+      const end = new Date(t.getFullYear(), t.getMonth() + 1, 0, 12, 0, 0)
+      setCalendarStart(dateToIso(start))
+      setCalendarEnd(dateToIso(end))
+      setCalendarMonth(new Date(t.getFullYear(), t.getMonth(), 1))
+      return
+    }
+
+    if (kind === 'lastMonth') {
+      const start = new Date(t.getFullYear(), t.getMonth() - 1, 1, 12, 0, 0)
+      const end = new Date(t.getFullYear(), t.getMonth(), 0, 12, 0, 0)
+      setCalendarStart(dateToIso(start))
+      setCalendarEnd(dateToIso(end))
+      setCalendarMonth(new Date(start.getFullYear(), start.getMonth(), 1))
+    }
+  }
+
+  useEffect(() => {
+    if (!isRsTraders) return
+    if (!showDatePicker) return
+
+    const base = isoToDate(pendingDateFrom) || isoToDate(pendingDateTo) || new Date()
+    setCalendarMonth(new Date(base.getFullYear(), base.getMonth(), 1))
+    setCalendarStart(pendingDateFrom || '')
+    setCalendarEnd(pendingDateTo || '')
+
+    const onDoc = (e) => {
+      const node = datePickerWrapRef.current
+      if (!node) return
+      if (node.contains(e.target)) return
+      setShowDatePicker(false)
+    }
+
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [isRsTraders, showDatePicker, pendingDateFrom, pendingDateTo])
 
   const start = (entry) => {
     if (currentUser?.role === 'staff') return
@@ -368,19 +531,41 @@ export default function DailyTransactions({
 
         {isRsTraders && (
           <div className="daily-actions-right no-export">
-            <div className="daily-date-popover-wrap">
+            <div className="daily-date-popover-wrap" ref={datePickerWrapRef}>
               <button
                 className="daily-range-btn"
                 type="button"
-                title="Date range"
+                title="Pick date range"
                 onClick={() => setShowDatePicker((v) => !v)}
               >
-                📅 {formatRangeLabel(pendingDateFrom, pendingDateTo)}
+                <span className="daily-range-ico" aria-hidden="true">📅</span>
+                <span className="daily-range-text">{rangeSummaryLabel(pendingDateFrom, pendingDateTo)}</span>
+                <span className="daily-range-caret" aria-hidden="true">▾</span>
               </button>
 
               {showDatePicker && (
-                <div className="daily-date-popover" role="dialog" aria-label="Select date range">
-                  <div className="daily-date-range" aria-label="Date range">
+                <div className="daily-date-popover daily-date-popover-calendar" role="dialog" aria-label="Select date range">
+                  <div className="daily-date-head">
+                    <div className="daily-date-title">Date range</div>
+                    <div className="daily-date-month">
+                      <button
+                        className="daily-cal-nav"
+                        type="button"
+                        aria-label="Previous month"
+                        onClick={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+                      >
+                        ‹
+                      </button>
+                      <div className="daily-cal-month-label">{monthLabel(calendarMonth)}</div>
+                      <button
+                        className="daily-cal-nav"
+                        type="button"
+                        aria-label="Next month"
+                        onClick={() => setCalendarMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+                      >
+                        ›
+                      </button>
+                    </div>
                     <input
                       type="date"
                       value={pendingDateFrom}
@@ -395,12 +580,63 @@ export default function DailyTransactions({
                       aria-label="To date"
                     />
                   </div>
+                  <div className="daily-date-presets" role="group" aria-label="Quick ranges">
+                    <button className="daily-chip" type="button" onClick={() => setPreset('today')}>Today</button>
+                    <button className="daily-chip" type="button" onClick={() => setPreset('last7')}>Last 7</button>
+                    <button className="daily-chip" type="button" onClick={() => setPreset('thisMonth')}>This month</button>
+                    <button className="daily-chip" type="button" onClick={() => setPreset('lastMonth')}>Last month</button>
+                    <button className="daily-chip daily-chip-ghost" type="button" onClick={resetDateRange}>Clear</button>
+                  </div>
+
+                  <div className="daily-cal-grid" aria-label="Calendar">
+                    <div className="daily-cal-week">
+                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+                        <div key={d} className="daily-cal-dow">{d}</div>
+                      ))}
+                    </div>
+                    <div className="daily-cal-days">
+                      {calendarDays.map((day, idx) => {
+                        if (!day) return <div key={`b-${idx}`} className="daily-cal-cell daily-cal-blank" />
+
+                        const s = isoToDate(calendarStart)
+                        const e = isoToDate(calendarEnd)
+                        const isStart = isSameDay(day, s)
+                        const isEnd = isSameDay(day, e)
+                        const inRange = isWithin(day, s, e)
+
+                        return (
+                          <button
+                            key={day.toISOString()}
+                            type="button"
+                            className={[
+                              'daily-cal-cell',
+                              inRange ? 'is-range' : '',
+                              isStart ? 'is-start' : '',
+                              isEnd ? 'is-end' : ''
+                            ].filter(Boolean).join(' ')}
+                            onClick={() => onCalendarPick(day)}
+                            aria-label={day.toLocaleDateString()}
+                          >
+                            {day.getDate()}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="daily-date-selected" aria-label="Selected range">
+                    <div className="daily-date-selected-pill">
+                      <span className="daily-date-selected-label">Selected</span>
+                      <span className="daily-date-selected-value">{rangeSummaryLabel(calendarStart, calendarEnd)}</span>
+                    </div>
+                  </div>
+
                   <div className="daily-date-actions">
-                    <button className="daily-btn daily-btn-ghost" onClick={resetFilters} type="button">
-                      Reset
+                    <button className="daily-btn daily-btn-ghost" onClick={() => setShowDatePicker(false)} type="button">
+                      Cancel
                     </button>
-                    <button className="daily-btn daily-btn-primary" onClick={applyFilters} type="button">
-                      Apply Filters
+                    <button className="daily-btn daily-btn-primary" onClick={() => applyFilters({ dateFrom: calendarStart, dateTo: calendarEnd })} type="button">
+                      Apply
                     </button>
                   </div>
                 </div>

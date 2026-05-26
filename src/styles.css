@@ -3171,6 +3171,41 @@ input:focus {
 .daily-date-actions{margin-top:10px;display:flex;justify-content:flex-end;gap:10px}
 .daily-range-btn{border:1px solid #e2e8f0;background:linear-gradient(180deg,#ffffff,#f8fafc);border-radius:12px;padding:8px 12px;font-weight:800;color:#0f172a;cursor:pointer;white-space:nowrap}
 .daily-range-btn:hover{box-shadow:0 10px 22px rgba(15,23,42,0.10)}
+.daily-range-btn{display:inline-flex;align-items:center;gap:10px}
+.daily-range-ico{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:linear-gradient(135deg,#e0f2fe,#eef2ff);border:1px solid #c7d2fe}
+.daily-range-text{font-weight:900;letter-spacing:.1px}
+.daily-range-caret{opacity:.7}
+
+.daily-date-popover-calendar{min-width:380px}
+.daily-date-popover-calendar .daily-date-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.daily-date-popover-calendar .daily-date-head input,
+.daily-date-popover-calendar .daily-date-head .daily-date-sep{display:none}
+.daily-date-title{font-weight:950;color:#0f172a}
+.daily-date-month{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,#f8fafc,#eef2ff);border:1px solid #c7d2fe;border-radius:12px;padding:6px 10px}
+.daily-cal-nav{border:1px solid #c7d2fe;background:#fff;border-radius:10px;width:30px;height:30px;cursor:pointer;font-weight:900;color:#1e293b}
+.daily-cal-nav:hover{box-shadow:0 10px 20px rgba(15,23,42,0.10)}
+.daily-cal-month-label{font-weight:900;color:#0f172a;min-width:150px;text-align:center}
+
+.daily-date-presets{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px}
+.daily-chip{border:1px solid #e2e8f0;background:linear-gradient(180deg,#ffffff,#f8fafc);border-radius:999px;padding:6px 10px;font-weight:900;color:#0f172a;cursor:pointer;font-size:12px}
+.daily-chip:hover{box-shadow:0 10px 20px rgba(15,23,42,0.10)}
+.daily-chip-ghost{background:#fff;border-style:dashed;color:#334155}
+
+.daily-cal-grid{border:1px solid #e2e8f0;border-radius:14px;padding:10px;background:linear-gradient(180deg,#ffffff,#f8fafc)}
+.daily-cal-week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:8px}
+.daily-cal-dow{font-size:11px;font-weight:900;color:#64748b;text-align:center}
+.daily-cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.daily-cal-cell{height:34px;border-radius:12px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;font-weight:900;color:#0f172a}
+.daily-cal-cell:hover{box-shadow:0 10px 18px rgba(15,23,42,0.10);transform:translateY(-1px)}
+.daily-cal-blank{background:transparent;border-color:transparent}
+.daily-cal-cell.is-range{background:linear-gradient(180deg,#eef2ff,#e0f2fe);border-color:#c7d2fe}
+.daily-cal-cell.is-start,
+.daily-cal-cell.is-end{background:linear-gradient(135deg,#2563eb,#7c3aed);border-color:#1d4ed8;color:#fff}
+
+.daily-date-selected{margin-top:10px}
+.daily-date-selected-pill{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:12px;border:1px solid #dbeafe;background:linear-gradient(135deg,#eff6ff,#eef2ff)}
+.daily-date-selected-label{font-size:11px;font-weight:950;letter-spacing:.12em;text-transform:uppercase;color:#334155}
+.daily-date-selected-value{font-weight:950;color:#0f172a}
 .daily-filters-toggle{border:1px solid #bfdbfe;background:linear-gradient(180deg,#ffffff,#eff6ff);border-radius:12px;padding:8px 12px;font-weight:800;color:#1d4ed8;cursor:pointer;white-space:nowrap}
 .daily-filters-toggle:hover{box-shadow:0 10px 22px rgba(37,99,235,0.14)}
 .stock-report-toolbar{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;box-shadow:0 8px 20px rgba(15,23,42,.06);margin-bottom:16px}
