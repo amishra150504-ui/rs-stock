@@ -1,9 +1,12 @@
 # Dependencies
 node_modules/
-package-lock.json
+
+# Keep lockfiles committed for CI/reproducible installs
+# (do not ignore package-lock.json / yarn.lock / pnpm-lock.yaml)
 
 # Build outputs
 dist/
+release-dist/
 .env
 .env.local
 

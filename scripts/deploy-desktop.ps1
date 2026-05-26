@@ -7,12 +7,15 @@ Write-Host "Building Electron app..." -ForegroundColor Cyan
 npm run build:electron
 
 $distDir = Join-Path $repoRoot "dist"
-$portable = Get-ChildItem $distDir -Filter "Management-System-*.exe" -File |
+$releaseDir = Join-Path $repoRoot "release-dist"
+$searchDirs = @($releaseDir, $distDir) | Where-Object { Test-Path $_ }
+
+$portable = Get-ChildItem $searchDirs -Filter "Management-System-*.exe" -File -ErrorAction SilentlyContinue |
   Sort-Object LastWriteTime -Descending |
   Select-Object -First 1
 
 if (-not $portable) {
-  throw "Portable exe not found in dist/. Expected Management-System-*.exe"
+  throw "Portable exe not found. Expected Management-System-*.exe in release-dist/ or dist/"
 }
 
 $desktopDir = [Environment]::GetFolderPath("Desktop")

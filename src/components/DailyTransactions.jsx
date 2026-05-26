@@ -70,6 +70,7 @@ export default function DailyTransactions({
   const [pendingDateFrom, setPendingDateFrom] = useState('')
   const [pendingDateTo, setPendingDateTo] = useState('')
   const [showFilters, setShowFilters] = useState(true)
+  const [showDatePicker, setShowDatePicker] = useState(false)
 
   const applyFilters = () => {
     if (!isRsTraders) return
@@ -78,6 +79,7 @@ export default function DailyTransactions({
     setCategoryFilter(pendingCategoryFilter)
     setDateFrom(pendingDateFrom)
     setDateTo(pendingDateTo)
+    setShowDatePicker(false)
   }
 
   const resetFilters = () => {
@@ -98,6 +100,7 @@ export default function DailyTransactions({
     setCategoryFilter('all')
     setDateFrom('')
     setDateTo('')
+    setShowDatePicker(false)
   }
 
   const formatRangeLabel = (from, to) => {
@@ -365,14 +368,44 @@ export default function DailyTransactions({
 
         {isRsTraders && (
           <div className="daily-actions-right no-export">
-            <button
-              className="daily-range-btn"
-              type="button"
-              title="Date range"
-              onClick={() => setShowFilters(true)}
-            >
-              📅 {formatRangeLabel(pendingDateFrom, pendingDateTo)}
-            </button>
+            <div className="daily-date-popover-wrap">
+              <button
+                className="daily-range-btn"
+                type="button"
+                title="Date range"
+                onClick={() => setShowDatePicker((v) => !v)}
+              >
+                📅 {formatRangeLabel(pendingDateFrom, pendingDateTo)}
+              </button>
+
+              {showDatePicker && (
+                <div className="daily-date-popover" role="dialog" aria-label="Select date range">
+                  <div className="daily-date-range" aria-label="Date range">
+                    <input
+                      type="date"
+                      value={pendingDateFrom}
+                      onChange={(e) => setPendingDateFrom(e.target.value)}
+                      aria-label="From date"
+                    />
+                    <span className="daily-date-sep">—</span>
+                    <input
+                      type="date"
+                      value={pendingDateTo}
+                      onChange={(e) => setPendingDateTo(e.target.value)}
+                      aria-label="To date"
+                    />
+                  </div>
+                  <div className="daily-date-actions">
+                    <button className="daily-btn daily-btn-ghost" onClick={resetFilters} type="button">
+                      Reset
+                    </button>
+                    <button className="daily-btn daily-btn-primary" onClick={applyFilters} type="button">
+                      Apply Filters
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               className="daily-filters-toggle"
               type="button"
@@ -417,22 +450,6 @@ export default function DailyTransactions({
           </div>
 
           <div className="daily-filters-right">
-            <div className="daily-date-range" aria-label="Date range">
-              <input
-                type="date"
-                value={pendingDateFrom}
-                onChange={(e) => setPendingDateFrom(e.target.value)}
-                aria-label="From date"
-              />
-              <span className="daily-date-sep">—</span>
-              <input
-                type="date"
-                value={pendingDateTo}
-                onChange={(e) => setPendingDateTo(e.target.value)}
-                aria-label="To date"
-              />
-            </div>
-
             <button className="daily-btn daily-btn-ghost" onClick={resetFilters} type="button">
               Reset
             </button>

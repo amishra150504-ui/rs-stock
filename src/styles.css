@@ -3166,6 +3166,9 @@ input:focus {
 
 .daily-actions{align-items:center}
 .daily-actions-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.daily-date-popover-wrap{position:relative;display:inline-flex}
+.daily-date-popover{position:absolute;right:0;top:calc(100% + 10px);z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:12px 12px;box-shadow:0 18px 40px rgba(15,23,42,0.18);min-width:340px}
+.daily-date-actions{margin-top:10px;display:flex;justify-content:flex-end;gap:10px}
 .daily-range-btn{border:1px solid #e2e8f0;background:linear-gradient(180deg,#ffffff,#f8fafc);border-radius:12px;padding:8px 12px;font-weight:800;color:#0f172a;cursor:pointer;white-space:nowrap}
 .daily-range-btn:hover{box-shadow:0 10px 22px rgba(15,23,42,0.10)}
 .daily-filters-toggle{border:1px solid #bfdbfe;background:linear-gradient(180deg,#ffffff,#eff6ff);border-radius:12px;padding:8px 12px;font-weight:800;color:#1d4ed8;cursor:pointer;white-space:nowrap}
