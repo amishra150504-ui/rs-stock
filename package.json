@@ -2,7 +2,7 @@
     "name": "rs-stock",
     "displayName": "Management System",
     "private": true,
-    "version": "0.1.6",
+    "version": "0.1.7",
     "description": "Professional stock management application for RS enterprises",
     "type": "module",
     "main": "electron.js",
