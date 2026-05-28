@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import StockEntry from './components/StockEntry.jsx'
@@ -220,46 +220,39 @@ export default function App() {
     const isWeb = protocol === 'http:' || protocol === 'https:'
     const isFile = protocol === 'file:'
 
-    // Packaged desktop: listen for electron-updater events (no storage touch)
-    let cleanup = null
-    if (isFile && window.rsStore?.onUpdateEvent) {
+    // Packaged desktop (local-only): check for local update packages.
+    if (isFile && window.rsStore?.localUpdateCheck) {
       void window.rsStore.getAppPathInfo?.().then((info) => setAppPathInfo(info || null)).catch(() => {})
-      cleanup = window.rsStore.onUpdateEvent((type, payload) => {
-        if (type === 'rs-update-available') {
-          setUpdateAvailable(true)
-          setUpdateInfo(payload || {})
-          setUpdateStatus('Update available')
-          setUpdateUnread(true)
-        } else if (type === 'rs-update-not-available') {
+
+      let active = true
+      const checkLocal = async () => {
+        try {
+          const res = await window.rsStore.localUpdateCheck()
+          if (!active) return
+          if (res?.available) {
+            setUpdateAvailable(true)
+            setUpdateInfo(res?.info || {})
+            setUpdateStatus('Local update ready (restart to apply)')
+            setUpdateUnread(true)
+          } else {
+            setUpdateAvailable(false)
+            setUpdateInfo(null)
+            setUpdateStatus('')
+            setUpdateUnread(false)
+          }
+        } catch {
+          if (!active) return
           setUpdateAvailable(false)
           setUpdateInfo(null)
           setUpdateStatus('')
-          setUpdateDownloading(false)
-          setUpdateProgress(null)
-          setUpdateUnread(false)
-          setShowUpdatePanel(false)
-        } else if (type === 'rs-update-download-progress') {
-          setUpdateDownloading(true)
-          setUpdateProgress(payload || null)
-        } else if (type === 'rs-update-downloaded') {
-          setUpdateAvailable(true)
-          setUpdateInfo(payload || {})
-          setUpdateDownloading(false)
-          setUpdateProgress(null)
-          setUpdateStatus('Update ready to install')
-          setUpdateUnread(true)
-        } else if (type === 'rs-update-error') {
-          setUpdateStatus(String(payload || 'Update error'))
-          setUpdateDownloading(false)
-          setUpdateUnread(true)
         }
-      })
-      // Kick off a check once at startup.
-      void window.rsStore.autoUpdateCheck?.()
-      const timer = setInterval(() => void window.rsStore.autoUpdateCheck?.(), 30 * 60 * 1000)
+      }
+
+      void checkLocal()
+      const timer = setInterval(checkLocal, 15 * 1000)
       return () => {
+        active = false
         clearInterval(timer)
-        cleanup?.()
       }
     }
 
@@ -269,10 +262,8 @@ export default function App() {
     const checkForUpdate = async () => {
       try {
         let data = null
-        if (isFile && window.rsStore?.checkUpdate) {
-          const currentBuildTime = buildInfo?.buildTime || buildInfo?.version || ''
-          const result = await window.rsStore.checkUpdate({ currentBuildTime })
-          if (result?.available) data = result?.info || {}
+        if (isFile) {
+          // no remote update checks in local-only mode
         } else {
           const res = await fetch(`version.json?ts=${Date.now()}`, { cache: 'no-store' })
           if (!res.ok) return
@@ -713,31 +704,16 @@ export default function App() {
   }
 
   const handleDesktopUpdate = () => {
-    // Prefer electron-updater in packaged desktop apps.
-    if (window.location.protocol === 'file:' && window.rsStore?.autoUpdateDownload) {
-      if (updateStatus === 'Update ready to install' && window.rsStore?.autoUpdateInstall) {
-        void window.rsStore.autoUpdateInstall()
-        return
-      }
-      void window.rsStore.autoUpdateDownload()
+    if (window.location.protocol === 'file:' && window.rsStore?.localUpdateApply) {
+      void window.rsStore.localUpdateApply()
       return
     }
-
-    // Fallback: old in-place update mechanism.
-    if (window.rsStore?.applyUpdate) {
-      void window.rsStore.applyUpdate()
-      return
-    }
-
     window.location.reload()
   }
 
   const openUpdatePanel = () => {
     setShowUpdatePanel((v) => {
       const next = !v
-      if (next && window.location.protocol === 'file:' && window.rsStore?.autoUpdateCheck) {
-        void window.rsStore.autoUpdateCheck()
-      }
       return next
     })
     setUpdateUnread(false)
@@ -746,20 +722,12 @@ export default function App() {
   const closeUpdatePanel = () => setShowUpdatePanel(false)
 
   const handleUpdateAction = async () => {
-    if (window.location.protocol === 'file:' && window.rsStore?.autoUpdateDownload) {
-      if (updateStatus === 'Update ready to install' && window.rsStore?.autoUpdateInstall) {
-        await window.rsStore.autoUpdateInstall()
-        return
-      }
-
+    if (window.location.protocol === 'file:' && window.rsStore?.localUpdateApply) {
       if (!updateAvailable) {
-        setUpdateStatus('Checking for updates...')
-        await window.rsStore.autoUpdateCheck?.()
+        setUpdateStatus('No local update package found.')
         return
       }
-
-      setUpdateStatus('Downloading update...')
-      await window.rsStore.autoUpdateDownload()
+      await window.rsStore.localUpdateApply()
       return
     }
 
@@ -836,7 +804,7 @@ export default function App() {
     title.style.fontSize = '20px'
     title.style.fontWeight = '700'
     title.style.marginBottom = '4px'
-    title.textContent = `${companyName} — ${reportType}`
+    title.textContent = `${companyName} â€” ${reportType}`
 
     const subtitle = document.createElement('div')
     subtitle.style.fontSize = '12px'
@@ -937,7 +905,7 @@ export default function App() {
 
         const dailyRows = dailyList.map((entry) => {
           const itemMeta = itemsList.find((i) => i.name === entry.item)
-          const remark = entry?.remarks || entry?.remark || '—'
+          const remark = entry?.remarks || entry?.remark || 'â€”'
           return [
             entry.item || '',
             itemMeta?.category || '',
@@ -953,7 +921,7 @@ export default function App() {
           companyName: c.name,
           reportType: 'Daily Transactions',
           columns: ['Item', 'Category', 'Type', 'KG', 'PCS', 'Date', 'Remarks'],
-          rows: dailyRows.length ? dailyRows : [['—', '', '', '0.000', '0', '', '—']],
+          rows: dailyRows.length ? dailyRows : [['â€”', '', '', '0.000', '0', '', 'â€”']],
           dateKey
         })
 
@@ -981,7 +949,7 @@ export default function App() {
             companyName: c.name,
             reportType: 'Stock Report',
             columns: ['Item', 'Category', 'In KG', 'Out KG', 'Balance KG', 'Balance PCS'],
-            rows: stockRows.length ? stockRows : [['—', '', '0.000', '0.000', '0.000', '0']],
+            rows: stockRows.length ? stockRows : [['â€”', '', '0.000', '0.000', '0.000', '0']],
             dateKey
           })
         }
@@ -1042,12 +1010,12 @@ export default function App() {
         <header className="topbar">
           {isInCompany ? (
             <button className="hamburger" onClick={() => setSidebarOpen((s) => !s)} aria-label="Toggle menu">
-              ☰
+              â˜°
             </button>
           ) : (
             <div style={{ width: 38 }} />
           )}
-          <div className="brand">{isInCompany ? company.name : 'COMPANY MANAGEMENT SYSTEM'}</div>
+          <div className="brand">{isInCompany ? company.name : 'LAXMI AGENCY'}</div>
           <div className="topbar-right">
             {isInCompany && (
               <button className="chip" onClick={handleBackToCompanies}>
@@ -1059,7 +1027,7 @@ export default function App() {
                 Dashboard
               </button>
             )}
-            {window.location.protocol === 'file:' && window.rsStore?.onUpdateEvent && (
+            {window.location.protocol === 'file:' && window.rsStore?.localUpdateCheck && (
               <div className="update-wrap">
               <button
                 className="update-icon"
@@ -1071,7 +1039,7 @@ export default function App() {
                 <span className="update-bell" aria-hidden="true">U</span>
                 {(updateUnread || updateAvailable) && <span className="update-badge" aria-hidden="true" />}
                 {/* legacy label removed
-                    ? 'Downloading…'
+                    ? 'Downloadingâ€¦'
                     : 'Update Available'}
                 */}
               </button>
@@ -1081,7 +1049,7 @@ export default function App() {
                   <div className="update-panel-head">
                     <div className="update-panel-title">Update</div>
                     <button className="update-panel-close" type="button" onClick={closeUpdatePanel} aria-label="Close">
-                      ×
+                      x
                     </button>
                   </div>
                   <div className="update-panel-body">
@@ -1200,9 +1168,7 @@ export default function App() {
                 updateAvailable={updateAvailable}
                 updateVersion={updateInfo?.version || ''}
                 onOpenUpdates={() => {
-                  if (window.location.protocol === 'file:' && window.rsStore?.onUpdateEvent) {
-                    openUpdatePanel()
-                  }
+                  if (window.location.protocol === 'file:' && window.rsStore?.localUpdateCheck) openUpdatePanel()
                 }}
               />
             )}
@@ -1398,3 +1364,4 @@ export default function App() {
     </div>
   )
 }
+

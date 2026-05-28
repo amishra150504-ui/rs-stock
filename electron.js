@@ -4,9 +4,6 @@ import { fileURLToPath } from 'url'
 import http from 'http'
 import fs from 'fs'
 import { spawn } from 'child_process'
-import updater from 'electron-updater'
-
-const { autoUpdater } = updater
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -59,7 +56,7 @@ const getReportFilePath = (companyName, dateKey, reportType, ext) =>
   path.join(REPORT_DIR, safeName(companyName), dateKey, `${safeName(reportType)}.${ext}`)
 
 const getDesktopInstallDir = () =>
-  path.join(app.getPath('desktop'), 'Management System')
+  path.join(app.getPath('desktop'), 'LAXMI AGENCY')
 
 const getDesktopUpdatesDir = () =>
   path.join(getDesktopInstallDir(), 'updates')
@@ -69,6 +66,11 @@ const getDesktopUpdateExePath = () =>
 
 const getDesktopUpdateVersionPath = () =>
   path.join(getDesktopUpdatesDir(), 'version.json')
+
+const getLocalUpdatesDir = () => path.join(app.getPath('userData'), 'local-updates')
+const getLocalPendingDir = () => path.join(getLocalUpdatesDir(), 'pending')
+const getLocalPendingAsarPath = () => path.join(getLocalPendingDir(), 'app.asar')
+const getLocalPendingVersionPath = () => path.join(getLocalPendingDir(), 'version.json')
 
 // Helper to check if port is available
 function isPortAvailable(port) {
@@ -129,7 +131,7 @@ async function createWindow() {
     <body>
       <div class="card">
         <div class="inner">
-          <div class="title">Management System</div>
+          <div class="title">LAXMI AGENCY</div>
           <div class="sub">Loading…</div>
           <div class="bar"><div></div></div>
         </div>
@@ -186,39 +188,45 @@ async function createWindow() {
   })
 }
 
-const configureAutoUpdater = () => {
-  try {
-    // Optional override at runtime without rebuilding:
-    // set RS_UPDATE_URL, e.g. https://example.com/rs-stock-updates/
-    const updateUrl = process.env.RS_UPDATE_URL
-    if (updateUrl) {
-      autoUpdater.setFeedURL({ provider: 'generic', url: updateUrl })
-    }
-  } catch (err) {
-    console.error('autoUpdater config error', err)
-  }
+app.whenReady().then(() => {
+  const applyPendingLocalUpdate = async () => {
+    if (!app.isPackaged) return
+    const pendingAsar = getLocalPendingAsarPath()
+    const pendingVersion = getLocalPendingVersionPath()
+    if (!fs.existsSync(pendingAsar) || !fs.existsSync(pendingVersion)) return
 
-  autoUpdater.autoDownload = false
+    const targetAsar = path.join(process.resourcesPath, 'app.asar')
+    const tempPs = path.join(app.getPath('temp'), `laxmi-agency-apply-update-${Date.now()}.ps1`)
+    const psScript = `
+$ErrorActionPreference = "Stop"
+$pendingAsar = "${pendingAsar.replace(/"/g, '""')}"
+$targetAsar = "${targetAsar.replace(/"/g, '""')}"
+$pendingDir = "${getLocalPendingDir().replace(/"/g, '""')}"
+$pid = ${process.pid}
 
-  autoUpdater.on('error', (err) => {
-    if (mainWindow) mainWindow.webContents.send('rs-update-error', String(err?.message || err))
-  })
-  autoUpdater.on('update-available', (info) => {
-    if (mainWindow) mainWindow.webContents.send('rs-update-available', info || {})
-  })
-  autoUpdater.on('update-not-available', (info) => {
-    if (mainWindow) mainWindow.webContents.send('rs-update-not-available', info || {})
-  })
-  autoUpdater.on('download-progress', (progress) => {
-    if (mainWindow) mainWindow.webContents.send('rs-update-download-progress', progress || {})
-  })
-  autoUpdater.on('update-downloaded', (info) => {
-    if (mainWindow) mainWindow.webContents.send('rs-update-downloaded', info || {})
-  })
+try { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue } catch {}
+for ($i=0; $i -lt 80; $i++) {
+  $p = Get-Process -Id $pid -ErrorAction SilentlyContinue
+  if (-not $p) { break }
+  Start-Sleep -Milliseconds 200
 }
 
-app.whenReady().then(() => {
-  configureAutoUpdater()
+Copy-Item -Force $pendingAsar $targetAsar
+Remove-Item -Force (Join-Path $pendingDir \"app.asar\") -ErrorAction SilentlyContinue
+Remove-Item -Force (Join-Path $pendingDir \"version.json\") -ErrorAction SilentlyContinue
+Start-Process -FilePath \"${process.execPath.replace(/"/g, '""')}\" -WorkingDirectory \"${path.dirname(process.execPath).replace(/"/g, '""')}\"
+`
+    await fs.promises.writeFile(tempPs, psScript, 'utf8')
+    const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tempPs], {
+      detached: true,
+      stdio: 'ignore'
+    })
+    child.unref()
+    setTimeout(() => app.quit(), 150)
+  }
+
+  // If an update package exists, apply it on restart.
+  void applyPendingLocalUpdate()
 
   ipcMain.handle('rs-read-company', async (_event, companyId) => {
     try {
@@ -367,60 +375,22 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('rs-update-check', async (_event, payload) => {
+  ipcMain.handle('rs-local-update-check', async () => {
     try {
-      const currentBuildTime = String(payload?.currentBuildTime || '')
-      const versionPath = getDesktopUpdateVersionPath()
-      if (!fs.existsSync(versionPath)) return { available: false }
-      const raw = await fs.promises.readFile(versionPath, 'utf8')
+      const pendingAsar = getLocalPendingAsarPath()
+      const pendingVersion = getLocalPendingVersionPath()
+      if (!fs.existsSync(pendingAsar) || !fs.existsSync(pendingVersion)) return { available: false }
+      const raw = await fs.promises.readFile(pendingVersion, 'utf8')
       const info = JSON.parse(raw)
-      const nextBuildTime = String(info?.buildTime || info?.version || '')
-      const exePath = getDesktopUpdateExePath()
-      const hasExe = fs.existsSync(exePath)
-      const available = Boolean(hasExe && nextBuildTime && currentBuildTime && nextBuildTime !== currentBuildTime)
-      return { available, info }
+      return { available: true, info }
     } catch (err) {
       return { available: false, error: String(err?.message || err) }
     }
   })
 
-  ipcMain.handle('rs-update-apply', async () => {
+  ipcMain.handle('rs-local-update-apply', async () => {
     try {
-      const updatesDir = getDesktopUpdatesDir()
-      const newExe = getDesktopUpdateExePath()
-      if (!fs.existsSync(newExe)) return { ok: false, error: 'No staged update found.' }
-
-      const targetExe = process.execPath
-      const psScript = `
-$ErrorActionPreference = "Stop"
-$newExe = "${newExe.replace(/"/g, '""')}"
-$targetExe = "${targetExe.replace(/"/g, '""')}"
-$pid = ${process.pid}
-
-try { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue } catch {}
-
-for ($i=0; $i -lt 80; $i++) {
-  $p = Get-Process -Id $pid -ErrorAction SilentlyContinue
-  if (-not $p) { break }
-  Start-Sleep -Milliseconds 200
-}
-
-Copy-Item -Force $newExe $targetExe
-Remove-Item -Force $newExe -ErrorAction SilentlyContinue
-Remove-Item -Force (Join-Path "${updatesDir.replace(/"/g, '""')}" "version.json") -ErrorAction SilentlyContinue
-Start-Process -FilePath $targetExe -WorkingDirectory (Split-Path -Parent $targetExe)
-`
-
-      const tempPs = path.join(app.getPath('temp'), `rs-stock-apply-update-${Date.now()}.ps1`)
-      await fs.promises.writeFile(tempPs, psScript, 'utf8')
-
-      const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tempPs], {
-        detached: true,
-        stdio: 'ignore'
-      })
-      child.unref()
-
-      // Quit the app; the PS script will relaunch after copying.
+      // Just quit; next start will apply pending update.
       setTimeout(() => app.quit(), 150)
       return { ok: true }
     } catch (err) {
@@ -428,33 +398,6 @@ Start-Process -FilePath $targetExe -WorkingDirectory (Split-Path -Parent $target
     }
   })
 
-  ipcMain.handle('rs-auto-update-check', async () => {
-    try {
-      const result = await autoUpdater.checkForUpdates()
-      return { ok: true, result }
-    } catch (err) {
-      return { ok: false, error: String(err?.message || err) }
-    }
-  })
-
-  ipcMain.handle('rs-auto-update-download', async () => {
-    try {
-      await autoUpdater.downloadUpdate()
-      return { ok: true }
-    } catch (err) {
-      return { ok: false, error: String(err?.message || err) }
-    }
-  })
-
-  ipcMain.handle('rs-auto-update-install', async () => {
-    try {
-      // Will quit and relaunch.
-      autoUpdater.quitAndInstall(true, true)
-      return { ok: true }
-    } catch (err) {
-      return { ok: false, error: String(err?.message || err) }
-    }
-  })
 })
 
 app.on('ready', createWindow)

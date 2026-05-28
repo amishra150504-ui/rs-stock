@@ -13,23 +13,8 @@ contextBridge.exposeInMainWorld('rsStore', {
   deleteFile: (payload) => invoke('rs-delete-file', payload),
   openPath: (payload) => invoke('rs-open-path', payload),
   showItem: (payload) => invoke('rs-show-item', payload),
-  checkUpdate: (payload) => invoke('rs-update-check', payload),
-  applyUpdate: () => invoke('rs-update-apply'),
-  autoUpdateCheck: () => invoke('rs-auto-update-check'),
-  autoUpdateDownload: () => invoke('rs-auto-update-download'),
-  autoUpdateInstall: () => invoke('rs-auto-update-install'),
+  localUpdateCheck: () => invoke('rs-local-update-check'),
+  localUpdateApply: () => invoke('rs-local-update-apply'),
   getAppPathInfo: () => invoke('rs-app-path-info'),
-  onUpdateEvent: (handler) => {
-    const channels = [
-      'rs-update-available',
-      'rs-update-not-available',
-      'rs-update-downloaded',
-      'rs-update-download-progress',
-      'rs-update-error'
-    ]
-    channels.forEach((ch) => {
-      ipcRenderer.on(ch, (_event, payload) => handler(ch, payload))
-    })
-    return () => channels.forEach((ch) => ipcRenderer.removeAllListeners(ch))
-  }
+  // No remote update events in local-only mode.
 })

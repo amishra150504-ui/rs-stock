@@ -1,18 +1,18 @@
 {
-  "name": "COMPANY MANAGEMENT SYSTEM",
-  "short_name": "CMS",
+  "name": "LAXMI AGENCY",
+  "short_name": "LA",
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#0f2a6d",
   "background_color": "#f1f5f9",
   "icons": [
     {
-      "src": "/rs-logo.png",
+      "src": "/laxmi-agency.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/rs-logo.png",
+      "src": "/laxmi-agency.png",
       "sizes": "512x512",
       "type": "image/png"
     }
