@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('rsStore', {
   autoUpdateCheck: () => invoke('rs-auto-update-check'),
   autoUpdateDownload: () => invoke('rs-auto-update-download'),
   autoUpdateInstall: () => invoke('rs-auto-update-install'),
+  getAppPathInfo: () => invoke('rs-app-path-info'),
   onUpdateEvent: (handler) => {
     const channels = [
       'rs-update-available',

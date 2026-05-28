@@ -355,6 +355,18 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('rs-app-path-info', async () => {
+    try {
+      return {
+        execPath: process.execPath,
+        appPath: app.getAppPath(),
+        isPackaged: app.isPackaged
+      }
+    } catch (err) {
+      return { error: String(err?.message || err) }
+    }
+  })
+
   ipcMain.handle('rs-update-check', async (_event, payload) => {
     try {
       const currentBuildTime = String(payload?.currentBuildTime || '')

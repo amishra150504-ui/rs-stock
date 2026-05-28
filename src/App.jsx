@@ -133,6 +133,7 @@ export default function App() {
   const [updateProgress, setUpdateProgress] = useState(null)
   const [updateUnread, setUpdateUnread] = useState(false)
   const [showUpdatePanel, setShowUpdatePanel] = useState(false)
+  const [appPathInfo, setAppPathInfo] = useState(null)
 
   const [items, setItems] = useState([])
   const [entries, setEntries] = useState([])
@@ -222,6 +223,7 @@ export default function App() {
     // Packaged desktop: listen for electron-updater events (no storage touch)
     let cleanup = null
     if (isFile && window.rsStore?.onUpdateEvent) {
+      void window.rsStore.getAppPathInfo?.().then((info) => setAppPathInfo(info || null)).catch(() => {})
       cleanup = window.rsStore.onUpdateEvent((type, payload) => {
         if (type === 'rs-update-available') {
           setUpdateAvailable(true)
@@ -1090,6 +1092,18 @@ export default function App() {
                         {updateInfo?.version ? ` (v${updateInfo.version})` : ''}
                       </span>
                     </div>
+                    <div className="update-panel-row">
+                      <span className="update-label">Installed</span>
+                      <span className="update-value">v{buildInfo?.version || '0.0.0'}</span>
+                    </div>
+                    {appPathInfo?.execPath && (
+                      <div className="update-panel-row">
+                        <span className="update-label">App Path</span>
+                        <span className="update-value" title={appPathInfo.execPath}>
+                          {String(appPathInfo.execPath).split('\\').slice(-3).join('\\')}
+                        </span>
+                      </div>
+                    )}
                     {updateDownloading && (
                       <div className="update-progress">
                         <div className="update-progress-bar">

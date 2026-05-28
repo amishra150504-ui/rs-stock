@@ -80,14 +80,20 @@ export default function CompanyHub({
               App v{String(appVersion || '').trim() || '0.0.0'}
             </span>
             {updateAvailable && (
-              <button
-                type="button"
-                className="company-hub-update-pill"
-                onClick={() => onOpenUpdates?.()}
-                title={updateVersion ? `Update available (v${updateVersion})` : 'Update available'}
-              >
-                Update available{updateVersion ? ` (v${updateVersion})` : ''}
-              </button>
+              <div className="company-hub-update-wrap">
+                <button
+                  type="button"
+                  className="company-hub-update-pill"
+                  onClick={() => onOpenUpdates?.()}
+                  title={updateVersion ? `Update available (v${updateVersion})` : 'Update available'}
+                >
+                  Update available
+                </button>
+                <div className="company-hub-update-sub">
+                  Installed v{String(appVersion || '').trim() || '0.0.0'}
+                  {updateVersion ? ` → Latest v${updateVersion}` : ''}
+                </div>
+              </div>
             )}
           </div>
         </div>
