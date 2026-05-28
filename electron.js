@@ -67,8 +67,10 @@ const getDesktopUpdateExePath = () =>
 const getDesktopUpdateVersionPath = () =>
   path.join(getDesktopUpdatesDir(), 'version.json')
 
-const getLocalUpdatesDir = () => path.join(app.getPath('userData'), 'local-updates')
-const getLocalPendingDir = () => path.join(getLocalUpdatesDir(), 'pending')
+// Local-only updates directory (inside the RS Stock folder, not in OneDrive)
+// Updates are staged here by `npm run release:local` and applied on next restart.
+const getLocalPendingDir = () =>
+  path.join(app.getPath('home'), 'Downloads', 'RS Stock', 'updates', 'pending')
 const getLocalPendingAsarPath = () => path.join(getLocalPendingDir(), 'app.asar')
 const getLocalPendingVersionPath = () => path.join(getLocalPendingDir(), 'version.json')
 

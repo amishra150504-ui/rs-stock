@@ -1,18 +1,12 @@
 import fs from 'node:fs/promises'
 import fssync from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 const root = process.cwd()
 
-const appData = process.env.APPDATA
-if (!appData) {
-  console.error('APPDATA is not set; cannot determine local update folder.')
-  process.exit(1)
-}
-
-// Must match `electron.js` which pins userData to this folder to preserve existing data.
-const userDataDir = path.join(appData, 'RS Stock Management')
-const pendingDir = path.join(userDataDir, 'local-updates', 'pending')
+// Must match `electron.js` (local-only updates staged inside the RS Stock folder).
+const pendingDir = path.join(os.homedir(), 'Downloads', 'RS Stock', 'updates', 'pending')
 
 const builtAsar = path.join(root, 'release-dist', 'win-unpacked', 'resources', 'app.asar')
 const builtVersionJson = path.join(root, 'dist', 'version.json')
