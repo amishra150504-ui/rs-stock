@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
-import { normalizeType } from '../utils/stockBalance'
+import { normalizeName, normalizeType } from '../utils/stockBalance'
 
 const sameEntry = (a, b) => {
   if (!a || !b) return false
@@ -11,8 +11,28 @@ const sameEntry = (a, b) => {
     Number(a.kg || 0) === Number(b.kg || 0) &&
     Number(a.pcs || 0) === Number(b.pcs || 0) &&
     (a.date || '') === (b.date || '') &&
-    (a.remarks || '') === (b.remarks || '')
+    (a.remarks || '') === (b.remarks || '') &&
+    (a.entryKind || '') === (b.entryKind || '') &&
+    (a.distributorCompany || '') === (b.distributorCompany || '') &&
+    (a.sellingParty || '') === (b.sellingParty || '')
   )
+}
+
+const entryKey = (e) => {
+  if (!e) return ''
+  const idPart = e.id !== undefined && e.id !== null ? `id:${e.id}` : 'id:na'
+  return [
+    idPart,
+    normalizeName(e.item),
+    normalizeType(e.type),
+    Number(e.kg || 0),
+    Number(e.pcs || 0),
+    e.date || '',
+    e.remarks || '',
+    e.entryKind || '',
+    e.distributorCompany || '',
+    e.sellingParty || ''
+  ].join('|')
 }
 
 const findEntryIndex = (list, target) => {
@@ -46,10 +66,19 @@ export default function DailyTransactions({
   onPurchase,
   onSale
 }) {
-  const [editing, setEditing] = useState(null)
+  const [editingKey, setEditingKey] = useState('')
   const [draft, setDraft] = useState({})
   const [selected, setSelected] = useState(new Set())
-  const hasDistributorEntries = dailyEntries.some((entry) => entry.entryKind === 'distributor-sale')
+  const safeDailyEntries = Array.isArray(dailyEntries) ? dailyEntries : []
+  const safeItems = Array.isArray(items) ? items : []
+
+  const itemsByName = useMemo(() => new Map(safeItems.map((it) => [it.name, it])), [safeItems])
+  const categoryOptions = useMemo(
+    () => [...new Set(safeItems.map((i) => i.category).filter(Boolean))],
+    [safeItems]
+  )
+
+  const hasDistributorEntries = safeDailyEntries.some((entry) => entry.entryKind === 'distributor-sale')
 
   const isRsTraders = companyId === 'rs_traders'
 
@@ -283,17 +312,24 @@ export default function DailyTransactions({
 
   const start = (entry) => {
     if (currentUser?.role === 'staff') return
-    setEditing(entry.originalIndex)
-    setDraft({ ...dailyEntries[entry.originalIndex] })
+    setEditingKey(entry.rowKey || '')
+    const { originalIndex, rowKey, ...clean } = entry || {}
+    setDraft({ ...clean })
   }
 
   const cancel = () => {
-    setEditing(null)
+    setEditingKey('')
     setDraft({})
   }
 
   const save = () => {
-    const original = dailyEntries[editing]
+    const idxInDaily = safeDailyEntries.findIndex((e) => entryKey(e) === editingKey)
+    if (idxInDaily < 0) {
+      cancel()
+      return
+    }
+
+    const original = safeDailyEntries[idxInDaily]
     const normalizedDraft = {
       ...draft,
       kg: Number(draft.kg || 0),
@@ -301,8 +337,8 @@ export default function DailyTransactions({
     }
 
     setDailyEntries(prev => {
-      const c = [...prev]
-      c[editing] = normalizedDraft
+      const c = [...(prev || [])]
+      c[idxInDaily] = normalizedDraft
       return c
     })
 
@@ -321,24 +357,27 @@ export default function DailyTransactions({
     if (currentUser?.role === 'staff')
       return alert('Staff cannot delete transactions')
     if (!window.confirm('Delete?')) return
-    const original = dailyEntries[entry.originalIndex]
 
-    setDailyEntries(prev => prev.filter((_, idx) => idx !== entry.originalIndex))
+    const idxInDaily = safeDailyEntries.findIndex((e) => entryKey(e) === entry.rowKey)
+    if (idxInDaily < 0) return
+    const original = safeDailyEntries[idxInDaily]
+
+    setDailyEntries((prev) => (prev || []).filter((_, idx) => idx !== idxInDaily))
     setEntries((prev) => {
       return removeEntryByIdOrMatch(prev, original)
     })
     setSelected(prev => {
       const next = new Set(prev)
-      next.delete(entry.originalIndex)
+      next.delete(entry.rowKey)
       return next
     })
   }
 
-  const toggleSelect = (originalIndex) => {
+  const toggleSelect = (rowKey) => {
     setSelected(prev => {
       const next = new Set(prev)
-      if (next.has(originalIndex)) next.delete(originalIndex)
-      else next.add(originalIndex)
+      if (next.has(rowKey)) next.delete(rowKey)
+      else next.add(rowKey)
       return next
     })
   }
@@ -348,19 +387,22 @@ export default function DailyTransactions({
       setSelected(new Set())
       return
     }
-    setSelected(new Set(filteredEntries.map(e => e.originalIndex)))
+    setSelected(new Set(filteredEntries.map((e) => e.rowKey)))
   }
 
   const deleteSelected = () => {
     if (currentUser?.role === 'staff')
       return alert('Staff cannot delete transactions')
-    if (!selected.size) return alert('No rows selected')
-    if (!window.confirm(`Delete ${selected.size} selected row(s)?`)) return
 
-    const selectedIndexes = new Set(selected)
-    const originals = dailyEntries.filter((_, idx) => selectedIndexes.has(idx))
+    const visibleSelectedKeys = filteredEntries.map((e) => e.rowKey).filter((k) => selected.has(k))
 
-    setDailyEntries(prev => prev.filter((_, idx) => !selectedIndexes.has(idx)))
+    if (!visibleSelectedKeys.length) return alert('No visible rows selected')
+    if (!window.confirm(`Delete ${visibleSelectedKeys.length} selected row(s)?`)) return
+
+    const selectedKeySet = new Set(visibleSelectedKeys)
+    const originals = safeDailyEntries.filter((e) => selectedKeySet.has(entryKey(e)))
+
+    setDailyEntries((prev) => (prev || []).filter((e) => !selectedKeySet.has(entryKey(e))))
     setEntries(prev => {
       let next = prev
       originals.forEach(o => {
@@ -372,35 +414,49 @@ export default function DailyTransactions({
   }
 
   // Apply Filters
-  const filteredEntries = dailyEntries
-    .map((d, originalIndex) => ({ ...d, originalIndex, entryRef: d }))
-    .filter(d => {
-    const itemObj = items?.find(i => i.name === d.item)
-    const searchText = `${d.item || ''} ${d.distributorCompany || ''} ${d.sellingParty || ''}`.toLowerCase()
-    if (search && !searchText.includes(search.toLowerCase())) return false
-    if (typeFilter !== 'all' && d.type !== typeFilter) return false
-    if (!isRsTraders) {
-      if (dateFilter && d.date !== dateFilter) return false
-    } else {
-      if (dateFrom && (d.date || '') < dateFrom) return false
-      if (dateTo && (d.date || '') > dateTo) return false
-    }
-    if (categoryFilter !== 'all' && itemObj?.category !== categoryFilter) return false
+  const deferredSearch = useDeferredValue(search)
+  const searchNeedle = (isRsTraders ? search : deferredSearch).toLowerCase()
 
-    return true
-  })
-    .sort((a, b) => {
-      const da = a.date || ''
-      const db = b.date || ''
-      if (da < db) return 1
-      if (da > db) return -1
-      return a.originalIndex - b.originalIndex
-    })
+  const filteredEntries = useMemo(() => {
+    return safeDailyEntries
+      .map((d, originalIndex) => ({ ...d, originalIndex, rowKey: entryKey(d) }))
+      .filter((d) => {
+        const itemObj = itemsByName.get(d.item)
+        const searchText = `${d.item || ''} ${d.distributorCompany || ''} ${d.sellingParty || ''}`.toLowerCase()
+        if (searchNeedle && !searchText.includes(searchNeedle)) return false
+        if (typeFilter !== 'all' && d.type !== typeFilter) return false
+        if (!isRsTraders) {
+          if (dateFilter && d.date !== dateFilter) return false
+        } else {
+          if (dateFrom && (d.date || '') < dateFrom) return false
+          if (dateTo && (d.date || '') > dateTo) return false
+        }
+        if (categoryFilter !== 'all' && itemObj?.category !== categoryFilter) return false
+        return true
+      })
+      .sort((a, b) => {
+        const da = a.date || ''
+        const db = b.date || ''
+        if (da < db) return 1
+        if (da > db) return -1
+        return a.originalIndex - b.originalIndex
+      })
+  }, [
+    safeDailyEntries,
+    itemsByName,
+    searchNeedle,
+    typeFilter,
+    dateFilter,
+    isRsTraders,
+    dateFrom,
+    dateTo,
+    categoryFilter
+  ])
 
   const rowsToRender = filteredEntries
 
   const getConversionForItem = (itemName) => {
-    const item = items?.find((it) => it.name === itemName)
+    const item = itemsByName.get(itemName)
     const conv = Number(item?.conversion || 0)
     if (conv > 0) return conv
     const name = String(itemName || '').toLowerCase()
@@ -421,6 +477,10 @@ export default function DailyTransactions({
 
   const exportReport = async (format) => {
     const el = document.getElementById('daily-export')
+    if (!el) {
+      alert('Export failed: report container not found.')
+      return
+    }
 
     const originalBg = el.style.backgroundColor
     const filters = el.querySelectorAll('.no-export')
@@ -745,12 +805,15 @@ export default function DailyTransactions({
             <thead>
               <tr>
                 <th className="no-export" style={{ width: 42, textAlign: 'center' }}>
-                  <input
-                    type="checkbox"
-                    checked={filteredEntries.length > 0 && selected.size === filteredEntries.length}
-                    onChange={(e) => toggleSelectAll(e.target.checked)}
-                  />
-                </th>
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredEntries.length > 0 &&
+                        filteredEntries.every((e) => selected.has(e.rowKey))
+                      }
+                      onChange={(e) => toggleSelectAll(e.target.checked)}
+                    />
+                  </th>
                 {isRsTraders ? (
                   <>
                     <th style={{ textAlign: 'center' }}>Date ⇅</th>
@@ -783,7 +846,7 @@ export default function DailyTransactions({
                       style={{ width: '100%', marginTop: 4, padding: '4px', borderRadius: 6, fontSize: '12px' }}
                     >
                       <option value="all">All</option>
-                      {[...new Set(items?.map(i => i.category))].map(cat => (
+                      {categoryOptions.map((cat) => (
                         <option key={cat} value={cat}>{cat}</option>
                       ))}
                     </select>
@@ -832,18 +895,18 @@ export default function DailyTransactions({
 
             <tbody>
               {rowsToRender.map((d, i) => (
-                <tr key={d.originalIndex} className="row-anim" style={{ animation: 'fadeIn .25s ease' }}>
+                <tr key={d.rowKey || d.originalIndex} className="row-anim" style={{ animation: 'fadeIn .25s ease' }}>
                   <td className="no-export" style={{ textAlign: 'center' }}>
                     <input
                       type="checkbox"
-                      checked={selected.has(d.originalIndex)}
-                      onChange={() => toggleSelect(d.originalIndex)}
+                      checked={selected.has(d.rowKey)}
+                      onChange={() => toggleSelect(d.rowKey)}
                     />
                   </td>
 
                   {isRsTraders && (
                     <td style={{ textAlign: 'center' }}>
-                      {editing === d.originalIndex ? (
+                      {editingKey === d.rowKey ? (
                         <input type="date" value={draft.date || ''} onChange={e => setDraft({ ...draft, date: e.target.value })} />
                       ) : (
                         d.date
@@ -852,7 +915,7 @@ export default function DailyTransactions({
                   )}
 
                   <td>
-                    {editing === d.originalIndex ? (
+                    {editingKey === d.rowKey ? (
                       <input value={draft.item || ''} onChange={e => setDraft({ ...draft, item: e.target.value })} />
                     ) : (
                       d.item
@@ -860,11 +923,11 @@ export default function DailyTransactions({
                   </td>
 
                   <td style={{ textAlign: 'center' }}>
-                    {items?.find(it => it.name === d.item)?.category || '—'}
+                    {itemsByName.get(d.item)?.category || '—'}
                   </td>
                   {hasDistributorEntries && (
                     <td style={{ textAlign: 'center' }}>
-                      {editing === d.originalIndex ? (
+                      {editingKey === d.rowKey ? (
                         <input value={draft.distributorCompany || ''} onChange={e => setDraft({ ...draft, distributorCompany: e.target.value })} />
                       ) : (
                         d.distributorCompany || '—'
@@ -874,7 +937,7 @@ export default function DailyTransactions({
 
                   {hasDistributorEntries && (
                     <td style={{ textAlign: 'center' }}>
-                      {editing === d.originalIndex ? (
+                      {editingKey === d.rowKey ? (
                         <input value={draft.sellingParty || ''} onChange={e => setDraft({ ...draft, sellingParty: e.target.value })} />
                       ) : (
                         d.sellingParty || '—'
@@ -884,7 +947,7 @@ export default function DailyTransactions({
 
 
                   <td style={{ textAlign: 'center' }}>
-                    {editing === d.originalIndex ? (
+                    {editingKey === d.rowKey ? (
                       <select value={draft.type} onChange={e => setDraft({ ...draft, type: e.target.value })}>
                         <option>Stock In</option>
                         <option>Stock Out</option>
@@ -903,15 +966,15 @@ export default function DailyTransactions({
                   </td>
 
                   <td style={{ textAlign: 'center' }}>
-                    {editing === d.originalIndex ? (
+                    {editingKey === d.rowKey ? (
                       <input type="number" value={draft.kg || ''} onChange={e => setDraft({ ...draft, kg: e.target.value })} />
                     ) : (
-                      Number(d.kg).toFixed(3)
+                      Number(d.kg || 0).toFixed(3)
                     )}
                   </td>
 
                   <td style={{ textAlign: 'center' }}>
-                    {editing === d.originalIndex ? (
+                    {editingKey === d.rowKey ? (
                       <input type="number" value={draft.pcs || ''} onChange={e => setDraft({ ...draft, pcs: e.target.value })} />
                     ) : (
                       getDisplayPcs(d)
@@ -921,7 +984,7 @@ export default function DailyTransactions({
 
                   {!isRsTraders && (
                     <td style={{ textAlign: 'center' }}>
-                      {editing === d.originalIndex ? (
+                      {editingKey === d.rowKey ? (
                         <input type="date" value={draft.date || ''} onChange={e => setDraft({ ...draft, date: e.target.value })} />
                       ) : (
                         d.date
@@ -930,7 +993,7 @@ export default function DailyTransactions({
                   )}
 
                   <td style={{ textAlign: 'center' }}>
-                    {editing === d.originalIndex ? (
+                    {editingKey === d.rowKey ? (
                       <input value={draft.remarks || ''} onChange={e => setDraft({ ...draft, remarks: e.target.value })} />
                     ) : (
                       d.remarks || '—'
@@ -938,7 +1001,7 @@ export default function DailyTransactions({
                   </td>
 
                   <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                    {editing === d.originalIndex ? (
+                    {editingKey === d.rowKey ? (
                       <>
                         <button
                           onClick={save}

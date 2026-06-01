@@ -13,7 +13,7 @@
     },
     "scripts": {
         "dev": "vite",
-        "dev:electron": "cross-env NODE_ENV=development electron .",
+        "dev:electron": "cross-env NODE_ENV=development node_modules/electron/dist/electron.exe .",
         "build": "vite build",
         "build:electron": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false ELECTRON_BUILDER_CACHE=.eb-cache electron-builder",
         "icon:generate": "node scripts/generate-icon.mjs",

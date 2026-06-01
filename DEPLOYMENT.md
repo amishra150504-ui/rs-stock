@@ -140,10 +140,27 @@ height: 900   // Desktop window height
 
 ## 🔐 Security Notes
 
-**Current (Development):**
+## 💾 Storage Notes (Web)
+
+### What “updates won’t affect storage” means
+When you deploy a new version to Vercel, existing data in the same browser/profile is not deleted automatically.
+Data is saved in the browser under stable keys (see `src/utils/localStore.js`).
+
+### Important limitation
+Browser storage can still be cleared by:
+- Clearing site data / cache
+- Incognito/private windows
+- Browser policies, profile resets, or OS cleanup tools
+
+### Recommendation
+Use the built-in Backup/Export regularly if the data is important.
+
+---
+
+**Current (Local-only):**
 - ✅ Client-side only (no server)
-- ✅ All data in localStorage
-- ⚠️ Passwords stored plaintext
+- ✅ All data in localStorage (web) or via desktop bridge (Electron)
+- ⚠️ Passwords stored plaintext (simple local login)
 
 **For Production (Recommended):**
 1. **Add Backend**: Node.js + Express + MongoDB
@@ -166,6 +183,21 @@ height: 900   // Desktop window height
 ✅ Firefox (latest)
 ✅ Safari (latest)
 ✅ Mobile browsers
+
+---
+
+## 🚢 Vercel Workflow (Deploy only when you say)
+
+Goal: use localhost for testing, and update the Vercel site only when you intentionally deploy.
+
+1. In Vercel Project Settings → Git:
+   - Set **Production Branch** to `release`
+2. Development flow:
+   - Work locally and test on `http://localhost:5173` with `npm run dev`
+3. Deploy flow:
+   - Merge/Push changes to the `release` branch → Vercel deploys production
+4. Optional (recommended):
+   - Use Pull Requests to get Preview Deployments before merging to `release`
 
 ---
 

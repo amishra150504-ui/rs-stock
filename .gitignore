@@ -35,3 +35,8 @@ rollback_*/
 RS-DEBUG/
 RS-DEBUG.zip
 src/supabaseClient.js
+
+# Electron ASAR temp outputs
+.asar-tmp/
+.asar-tmp2/
+.asar-tmp3/

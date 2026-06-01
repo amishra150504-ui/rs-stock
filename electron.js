@@ -1,12 +1,62 @@
-import { app, BrowserWindow, ipcMain, shell, Menu } from 'electron'
+import electron from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import http from 'http'
 import fs from 'fs'
+import os from 'os'
 import { spawn } from 'child_process'
+
+const { app, BrowserWindow, ipcMain, shell, Menu } = electron
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+
+const fallbackLogPath = (() => {
+  try {
+    return path.join(os.tmpdir(), 'laxmi-agency-launch.log')
+  } catch {
+    return path.join(process.cwd(), 'laxmi-agency-launch.log')
+  }
+})()
+
+const logFallback = (message) => {
+  try {
+    const ts = new Date().toISOString()
+    fs.appendFileSync(fallbackLogPath, `[${ts}] ${message}\n`, 'utf8')
+  } catch {
+    // ignore
+  }
+}
+
+const mainLogPath = (() => {
+  try {
+    const home = process.env.USERPROFILE || os.homedir()
+    return path.join(home, 'Downloads', 'RS Stock', 'updates', 'pending', 'electron-main.log')
+  } catch {
+    return path.join(process.cwd(), 'electron-main.log')
+  }
+})()
+
+const logMain = (message) => {
+  try {
+    const ts = new Date().toISOString()
+    fs.mkdirSync(path.dirname(mainLogPath), { recursive: true })
+    fs.appendFileSync(mainLogPath, `[${ts}] ${message}\n`, 'utf8')
+  } catch {
+    // ignore
+  }
+}
+
+logMain('electron main starting')
+logFallback('electron main starting')
+
+process.on('uncaughtException', (err) => {
+  logFallback(`uncaughtException: ${String(err?.stack || err)}`)
+})
+
+process.on('unhandledRejection', (reason) => {
+  logFallback(`unhandledRejection: ${String(reason?.stack || reason)}`)
+})
 
 const userDataDir = path.join(app.getPath('appData'), 'RS Stock Management')
 app.setPath('userData', userDataDir)
@@ -144,6 +194,16 @@ async function createWindow() {
   splashWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml)}`)
   splashWindow.center()
 
+  const safeCloseWindow = (win) => {
+    try {
+      if (!win) return
+      if (win.isDestroyed()) return
+      win.close()
+    } catch {
+      // ignore
+    }
+  }
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -160,12 +220,10 @@ async function createWindow() {
   Menu.setApplicationMenu(null)
 
   mainWindow.once('ready-to-show', () => {
-    if (!mainWindow) return
+    if (!mainWindow || mainWindow.isDestroyed()) return
     mainWindow.show()
-    if (splashWindow) {
-      splashWindow.close()
-      splashWindow = null
-    }
+    safeCloseWindow(splashWindow)
+    splashWindow = null
   })
 
   const forceDist = process.env.RS_FORCE_DIST === '1'
@@ -183,20 +241,20 @@ async function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null
-    if (splashWindow) {
-      splashWindow.close()
-      splashWindow = null
-    }
+    safeCloseWindow(splashWindow)
+    splashWindow = null
   })
 }
 
 app.whenReady().then(() => {
+  logMain('app.whenReady resolved')
   const applyPendingLocalUpdate = async () => {
     if (!app.isPackaged) return
     const pendingAsar = getLocalPendingAsarPath()
     const pendingVersion = getLocalPendingVersionPath()
     if (!fs.existsSync(pendingAsar) || !fs.existsSync(pendingVersion)) return
 
+    logMain(`pending update detected: asar=${pendingAsar} version=${pendingVersion}`)
     const targetAsar = path.join(process.resourcesPath, 'app.asar')
     const tempPs = path.join(app.getPath('temp'), `laxmi-agency-apply-update-${Date.now()}.ps1`)
     const psScript = `
@@ -206,25 +264,67 @@ $targetAsar = "${targetAsar.replace(/"/g, '""')}"
 $pendingDir = "${getLocalPendingDir().replace(/"/g, '""')}"
 $pid = ${process.pid}
 
-try { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue } catch {}
+$log = Join-Path $pendingDir "apply.log"
+function Log($msg) {
+  try {
+    $ts = (Get-Date).ToString("s")
+    Add-Content -Path $log -Value ("[$ts] " + $msg)
+  } catch {}
+}
+
+Log("Starting local update apply helper. pid=$pid")
+Log("pendingAsar=$pendingAsar")
+Log("targetAsar=$targetAsar")
+
+# Wait for the Electron process to exit (the app will call app.quit()).
 for ($i=0; $i -lt 80; $i++) {
   $p = Get-Process -Id $pid -ErrorAction SilentlyContinue
   if (-not $p) { break }
   Start-Sleep -Milliseconds 200
 }
 
-Copy-Item -Force $pendingAsar $targetAsar
-Remove-Item -Force (Join-Path $pendingDir \"app.asar\") -ErrorAction SilentlyContinue
-Remove-Item -Force (Join-Path $pendingDir \"version.json\") -ErrorAction SilentlyContinue
+if (Test-Path $pendingAsar) {
+  Log("Copying app.asar...")
+  Copy-Item -Force $pendingAsar $targetAsar
+  Log("Copied app.asar.")
+} else {
+  Log("pendingAsar missing; skipping copy.")
+}
+
+try { Remove-Item -Force (Join-Path $pendingDir "app.asar") -ErrorAction SilentlyContinue } catch {}
+try { Remove-Item -Force (Join-Path $pendingDir "version.json") -ErrorAction SilentlyContinue } catch {}
+Log("Removed pending files.")
+
+Log("Relaunching: ${process.execPath.replace(/"/g, '""')}")
 Start-Process -FilePath \"${process.execPath.replace(/"/g, '""')}\" -WorkingDirectory \"${path.dirname(process.execPath).replace(/"/g, '""')}\"
 `
     await fs.promises.writeFile(tempPs, psScript, 'utf8')
-    const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tempPs], {
+    logMain(`wrote update helper script: ${tempPs}`)
+
+    const psExe =
+      process.env.SystemRoot
+        ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+        : 'powershell.exe'
+
+    let helperErrored = false
+    const child = spawn(psExe, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tempPs], {
       detached: true,
       stdio: 'ignore'
     })
+    child.once('error', (err) => {
+      helperErrored = true
+      console.error('local update helper failed to start', err)
+      logMain(`update helper error: ${String(err?.message || err)}`)
+    })
     child.unref()
-    setTimeout(() => app.quit(), 150)
+    logMain(`spawned update helper: ${psExe}`)
+
+    // Only quit if the helper actually started.
+    setTimeout(() => {
+      if (helperErrored) return
+      logMain('quitting to apply update')
+      app.quit()
+    }, 250)
   }
 
   // If an update package exists, apply it on restart.
@@ -402,7 +502,16 @@ Start-Process -FilePath \"${process.execPath.replace(/"/g, '""')}\" -WorkingDire
 
 })
 
-app.on('ready', createWindow)
+app.on('ready', () => {
+  Promise.resolve()
+    .then(() => createWindow())
+    .catch((err) => {
+      logFallback(`createWindow failed: ${String(err?.stack || err)}`)
+      try {
+        app.quit()
+      } catch {}
+    })
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

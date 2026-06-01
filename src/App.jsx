@@ -804,7 +804,7 @@ export default function App() {
     title.style.fontSize = '20px'
     title.style.fontWeight = '700'
     title.style.marginBottom = '4px'
-    title.textContent = `${companyName} â€” ${reportType}`
+    title.textContent = `${companyName} — ${reportType}`
 
     const subtitle = document.createElement('div')
     subtitle.style.fontSize = '12px'
@@ -905,7 +905,7 @@ export default function App() {
 
         const dailyRows = dailyList.map((entry) => {
           const itemMeta = itemsList.find((i) => i.name === entry.item)
-          const remark = entry?.remarks || entry?.remark || 'â€”'
+          const remark = entry?.remarks || entry?.remark || '—'
           return [
             entry.item || '',
             itemMeta?.category || '',
@@ -921,7 +921,7 @@ export default function App() {
           companyName: c.name,
           reportType: 'Daily Transactions',
           columns: ['Item', 'Category', 'Type', 'KG', 'PCS', 'Date', 'Remarks'],
-          rows: dailyRows.length ? dailyRows : [['â€”', '', '', '0.000', '0', '', 'â€”']],
+          rows: dailyRows.length ? dailyRows : [['—', '', '', '0.000', '0', '', '—']],
           dateKey
         })
 
@@ -949,7 +949,7 @@ export default function App() {
             companyName: c.name,
             reportType: 'Stock Report',
             columns: ['Item', 'Category', 'In KG', 'Out KG', 'Balance KG', 'Balance PCS'],
-            rows: stockRows.length ? stockRows : [['â€”', '', '0.000', '0.000', '0.000', '0']],
+            rows: stockRows.length ? stockRows : [['—', '', '0.000', '0.000', '0.000', '0']],
             dateKey
           })
         }
@@ -1010,12 +1010,26 @@ export default function App() {
         <header className="topbar">
           {isInCompany ? (
             <button className="hamburger" onClick={() => setSidebarOpen((s) => !s)} aria-label="Toggle menu">
-              â˜°
+              ☰
             </button>
           ) : (
             <div style={{ width: 38 }} />
           )}
-          <div className="brand">{isInCompany ? company.name : 'LAXMI AGENCY'}</div>
+          <div className="topbar-brand">
+            <div className="brand">{isInCompany ? company.name : 'LAXMI AGENCY'}</div>
+            {window.location.protocol === 'file:' &&
+              window.rsStore?.localUpdateCheck &&
+              (updateAvailable || updateStatus === 'Update ready to install') && (
+                <button
+                  type="button"
+                  className="topbar-update-pill"
+                  onClick={openUpdatePanel}
+                  title={updateStatus || 'Update available'}
+                >
+                  {updateStatus === 'Update ready to install' ? 'Restart & Install' : 'Update available'}
+                </button>
+              )}
+          </div>
           <div className="topbar-right">
             {isInCompany && (
               <button className="chip" onClick={handleBackToCompanies}>
@@ -1039,7 +1053,7 @@ export default function App() {
                 <span className="update-bell" aria-hidden="true">U</span>
                 {(updateUnread || updateAvailable) && <span className="update-badge" aria-hidden="true" />}
                 {/* legacy label removed
-                    ? 'Downloadingâ€¦'
+                    ? 'Downloading…'
                     : 'Update Available'}
                 */}
               </button>
