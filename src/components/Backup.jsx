@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { readCompanyState, readUsersState, writeCompanyState, writeUsersState } from '../utils/localStore'
 
 export default function Backup({
   items,
@@ -24,7 +25,9 @@ export default function Backup({
   setSellingParties,
   setUsers,
   setDaybookUploads,
-  setDailyChartUploads
+  setDailyChartUploads,
+  companyIds = [],
+  activeCompanyId = ''
 }) {
   const [selectedFileName, setSelectedFileName] = useState('')
   const [status, setStatus] = useState('')
@@ -82,6 +85,49 @@ export default function Backup({
     setStatus('Backup exported successfully.')
   }
 
+  const exportAllCompanies = async () => {
+    try {
+      const ids = Array.isArray(companyIds) ? companyIds.filter(Boolean) : []
+      if (!ids.length) {
+        alert('No companies configured for export')
+        return
+      }
+
+      setStatus('Preparing all-companies backup...')
+
+      const companies = {}
+      for (const id of ids) {
+        const stored = await readCompanyState(id)
+        const data = stored && !stored.error ? stored : null
+        companies[id] = data
+      }
+
+      const usersState = await readUsersState()
+      const usersList = Array.isArray(usersState?.users) ? usersState.users : Array.isArray(usersState) ? usersState : users
+
+      const payload = {
+        kind: 'rs-stock-backup-all',
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        companies,
+        users: usersList
+      }
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `rs-stock-backup-all-${Date.now()}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      setStatus('All-companies backup exported successfully.')
+    } catch (err) {
+      console.error('Export all-companies backup failed:', err)
+      setStatus(`Export failed (${err.message || 'unknown error'})`)
+      alert(`Export failed: ${err.message || 'unknown error'}`)
+    }
+  }
+
   const importBackup = (e) => {
     const f = e.target.files[0]
     if (!f) return
@@ -121,6 +167,61 @@ export default function Backup({
     r.readAsText(f)
   }
 
+  const importAllCompaniesBackup = (e) => {
+    const f = e.target.files[0]
+    if (!f) return
+    setSelectedFileName(f.name)
+    const r = new FileReader()
+    r.onload = async (ev) => {
+      try {
+        const d = JSON.parse(ev.target.result)
+        if (d?.kind !== 'rs-stock-backup-all' || typeof d?.companies !== 'object' || !d.companies) {
+          alert('Invalid all-companies backup file')
+          return
+        }
+
+        if (!window.confirm('Restore ALL companies backup and overwrite current local data?')) return
+
+        const ids = Array.isArray(companyIds) ? companyIds.filter(Boolean) : Object.keys(d.companies || {})
+        for (const id of ids) {
+          if (!Object.prototype.hasOwnProperty.call(d.companies, id)) continue
+          const companyData = d.companies[id]
+          if (companyData && typeof companyData === 'object') {
+            await writeCompanyState(id, companyData)
+          }
+        }
+
+        if (Array.isArray(d.users)) {
+          await writeUsersState({ schemaVersion: 1, users: d.users })
+          setUsers(d.users)
+        }
+
+        const active = activeCompanyId && d.companies[activeCompanyId] ? d.companies[activeCompanyId] : null
+        if (active) {
+          if (Array.isArray(active.items)) setItems(active.items)
+          if (Array.isArray(active.entries)) setEntries(active.entries)
+          if (Array.isArray(active.dailyEntries)) setDailyEntries(active.dailyEntries)
+          if (Array.isArray(active.categories)) setCategories(active.categories)
+          if (Number.isFinite(Number(active.entryCounter))) setEntryCounter(Number(active.entryCounter))
+          if (Array.isArray(active.purchaseParties) && setPurchaseParties) setPurchaseParties(active.purchaseParties)
+          if (Array.isArray(active.saleParties) && setSaleParties) setSaleParties(active.saleParties)
+          if (Array.isArray(active.distributorCompanies) && setDistributorCompanies) setDistributorCompanies(active.distributorCompanies)
+          if (Array.isArray(active.sellingParties) && setSellingParties) setSellingParties(active.sellingParties)
+          if (Array.isArray(active.daybookUploads)) setDaybookUploads(active.daybookUploads)
+          if (Array.isArray(active.dailyChartUploads)) setDailyChartUploads(active.dailyChartUploads)
+        }
+
+        setStatus('All-companies backup restored and saved locally.')
+        alert('All-companies backup restored and saved locally')
+      } catch (err) {
+        console.error('Import all-companies backup failed:', err)
+        setStatus('Invalid backup file.')
+        alert('Invalid backup file')
+      }
+    }
+    r.readAsText(f)
+  }
+
   return (
     <section className="page backup-page">
       <div className="backup-hero">
@@ -146,6 +247,10 @@ export default function Backup({
             Export Full Backup
           </button>
 
+          <button onClick={exportAllCompanies} className="backup-export-btn" type="button">
+            Export ALL Companies
+          </button>
+
           <label className="backup-file-label">
             <input
               type="file"
@@ -154,6 +259,16 @@ export default function Backup({
               className="backup-file-input"
             />
             <span>Import Backup File</span>
+          </label>
+
+          <label className="backup-file-label">
+            <input
+              type="file"
+              accept="application/json"
+              onChange={importAllCompaniesBackup}
+              className="backup-file-input"
+            />
+            <span>Import ALL Companies</span>
           </label>
         </div>
 

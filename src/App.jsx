@@ -1370,6 +1370,8 @@ export default function App() {
                   setUsers={setUsersCloud}
                   setDaybookUploads={setDaybookUploadsCloud}
                   setDailyChartUploads={setDailyChartUploadsCloud}
+                  companyIds={COMPANIES.map((c) => c.id)}
+                  activeCompanyId={company.id}
                 />
             )}
           </>
